@@ -65,7 +65,10 @@ INDEX_FILE = ".obsidian-semantic-index.json"  # written at vault root
 # must be split into safe chunks and averaged, or the model 500s. ~1200 chars sits
 # well under the limit; capping the chunk count bounds time on huge notes.
 _CHUNK_CHARS = 1200
-_MAX_CHUNKS = 8
+# 8 chunks (~9.6k chars) bounds build time on huge notes and suits most vaults.
+# Long-form vaults - research dossiers, book-length notes - can raise it, at the
+# cost of a slower build; text past the cap is not embedded.
+_MAX_CHUNKS = int(os.environ.get("OBSIDIAN_EMBED_MAX_CHUNKS") or "8")
 
 
 # --------------------------------------------------------------------------- #

@@ -823,7 +823,7 @@ Two ways to provide the embedding model:
 
 **Keep it current.** The index does not update itself, and a note that is not in it can only be found by literal word match - which on a query in another language means it cannot be found at all. Re-run `--build` regularly; it is incremental, so only new and changed notes re-embed. `/obsidian-health` reports coverage, and search warns on stderr once the index falls more than 5% behind (tune with `OBSIDIAN_INDEX_STALE_WARN_PCT`).
 
-Knobs: `OBSIDIAN_SEARCH_SEMANTIC=0` disables the layer entirely. The index file is large and regenerable - gitignore it.
+Knobs: `OBSIDIAN_SEARCH_SEMANTIC=0` disables the layer entirely. `OBSIDIAN_EMBED_MAX_CHUNKS=<n>` raises the per-note embedding cap from the default 8 chunks (~9,600 characters); a long-form vault of research dossiers or book-length notes embeds more of each note at the cost of a slower build, and text past the cap is not embedded. The index file is large and regenerable - gitignore it.
 
 ---
 
