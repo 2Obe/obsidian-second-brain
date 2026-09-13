@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **The minimal frontmatter example in `references/claude-md-template.md` never showed a `type:` field.** Section 0 (the AI-first rule) lists `type` as standard metadata, and every note the tool generates (`index.md`, `log.md`, daily logs) actually sets it - the example just never caught up. Added `type:` to the example, plus the `log`, `index`, and `log-pointer` types the tool produces but the enum omitted.
+
+- **README referenced a stale "45 commands" count.** `commands/*.md` currently ships 47 files, and the conformance-table section of the same README already said 47 - this one reference was never updated after new commands were added (confirmed against the closed #154, which pins the count at 45 at the time it was filed).
+
 - **The write-time validator warned on every slash-command file inside a vault (#249).** A project-scoped or Windows install copies `commands/*.md` into `<vault>/.claude/commands/`; those files carry `description:` frontmatter and no preamble by design, and `validate-ai-first.sh` checked each one as a note - 47 warnings per refresh. Paths under `.claude/` are now skipped like `templates/` and `_export/`, SKILL.md's skip list says so, and a smoke test pins it (a frontmatter-less file under `.claude/commands/` is silent; the same content under `Knowledge/` still warns).
 
 - **`freshness_lint.py` FRESH-3 no longer fires on RDF CURIEs or on `prefix:token` segments inside URLs.** `owl:Class`, `rdfs:label`, `skos:broader` name terms in a vocabulary, not records in a home system, so `owl`, `rdf`, `rdfs`, `xsd`, `skos`, `foaf`, `dc`, `dcterms`, `schema`, `prov`, `sh`, `dbo` and `wdt` join `POINTER_IGNORE`; and URLs are dropped from the line before the pointer scan, because a path segment such as Medium's `/resize:fit:1400/` matched the pointer shape while the URL guard only inspected the match itself. On a 6,400-note research vault this removed 126 findings, all false; a real unmapped id (`linear:ABC-123`) still rings. Covered by `tests/test_freshness_lint.py`.
