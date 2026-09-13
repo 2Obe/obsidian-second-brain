@@ -150,13 +150,14 @@ Claude should **ask before saving**:
 Every note must have at minimum:
 ```yaml
 ---
+type: [note-type]
 date: YYYY-MM-DD
 tags:
   - [note-type]
 ---
 ```
 
-Note types: `daily` | `project` | `task` | `person` | `devlog` | `deal` | `goal` | `mention` | `content`
+Note types: `daily` | `project` | `task` | `person` | `devlog` | `deal` | `goal` | `mention` | `content` | `log` | `index` | `log-pointer`
 
 ---
 
