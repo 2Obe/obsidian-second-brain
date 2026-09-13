@@ -68,7 +68,36 @@ _CHUNK_CHARS = 1200
 # 8 chunks (~9.6k chars) bounds build time on huge notes and suits most vaults.
 # Long-form vaults - research dossiers, book-length notes - can raise it, at the
 # cost of a slower build; text past the cap is not embedded.
-_MAX_CHUNKS = int(os.environ.get("OBSIDIAN_EMBED_MAX_CHUNKS") or "8")
+_MAX_CHUNKS_DEFAULT = 8
+
+
+def _read_max_chunks(raw: str | None) -> int:
+    """OBSIDIAN_EMBED_MAX_CHUNKS, or the default when it is not a usable count.
+
+    The cap is applied as `chunks[:_MAX_CHUNKS]`, so a bad value fails silently
+    and destructively rather than loudly: `0` embeds nothing and the note is
+    dropped from the index as unembeddable, and `-1` quietly drops the last
+    chunk of every long note. Both look like a working build. Anything that is
+    not an integer of 1 or more falls back to the default and says so once on
+    stderr.
+    """
+    if raw is None or not raw.strip():
+        return _MAX_CHUNKS_DEFAULT
+    try:
+        value = int(raw.strip())
+    except ValueError:
+        value = 0
+    if value < 1:
+        print(
+            f"[semantic] OBSIDIAN_EMBED_MAX_CHUNKS={raw.strip()!r} is not a chunk "
+            f"count of 1 or more - using the default {_MAX_CHUNKS_DEFAULT}.",
+            file=sys.stderr,
+        )
+        return _MAX_CHUNKS_DEFAULT
+    return value
+
+
+_MAX_CHUNKS = _read_max_chunks(os.environ.get("OBSIDIAN_EMBED_MAX_CHUNKS"))
 
 
 # --------------------------------------------------------------------------- #
