@@ -1013,6 +1013,8 @@ def update_note(
             new_body = new_body.rstrip() + f"\n\n{section}\n"
 
     out = "---\n" + "\n".join(fm_lines).strip("\n") + "\n---\n\n" + new_body.lstrip("\n")
+    if not _unchanged_since(target, text):
+        return {"error": f"{rel} {_NOTE_CHANGED_HINT}"}
     _write_atomic(target, out)
     out: Dict[str, Any] = {"updated": rel, "set": sorted(fields.keys()), "appended": bool(append)}
     out.update(_bookkeep(vault, "update", rel, f"[[{rel[:-3]}]] " + ("appended" if append else "fields set: " + ", ".join(sorted(fields.keys())))))
@@ -1051,6 +1053,8 @@ def replace_text(rel: str, old_text: str, new_text: str) -> Dict[str, Any]:
     count = text.count(old_text)
     if count != 1:
         return {"error": f"old_text must match exactly once; found {count} matches"}
+    if not _unchanged_since(target, text):
+        return {"error": f"{rel} {_NOTE_CHANGED_HINT}"}
     _write_atomic(target, text.replace(old_text, new_text, 1))
     result: Dict[str, Any] = {"updated": rel, "replacements": 1}
     result.update(_bookkeep(vault, "edit", rel, f"[[{rel[:-3]}]] text replaced"))
@@ -1409,6 +1413,33 @@ def _write_atomic(path: Path, text: str) -> None:
         except OSError:
             pass
         raise
+
+
+# Mirrors scripts/note_io.NoteChangedError and write_exact_if_unchanged (#217).
+# Kept as a copy for the same reason as the skip set above: this module ships
+# standalone in the MCP server and must not import from scripts/.
+# tests/test_concurrent_writes.py pins the two together so they cannot drift.
+_NOTE_CHANGED_HINT = (
+    "changed on disk since this tool read it - refusing to overwrite. Another "
+    "writer (a scheduled agent, a second session, or a sync client) edited it; "
+    "read the note again and redo the change."
+)
+
+
+def _unchanged_since(path: Path, expected: str) -> bool:
+    """Does the note still hold the text this call read?
+
+    The window inside one tool call is short, but it is enough: two calls that
+    overlap both read the old note, both build a new one from it, and both
+    writes succeed - the second silently discards the first. Whichever call
+    writes second now sees the other's bytes on disk and refuses, so the loss
+    is reported to the caller that can still redo it rather than vanishing.
+
+    Compared through _read_safe so both reads normalise identically (utf-8-sig,
+    same truncation limit). This covers the note itself; the bookkeeping
+    appends to index.md and log.md carry the same race and are not guarded here.
+    """
+    return _read_safe(path) == expected
 
 
 def _resolve_in_vault(vault: Path, rel: str) -> Optional[Path]:
