@@ -243,8 +243,15 @@ _FUSE_DEPTH = 25  # how many from each ranking feed the fusion
 _RRF_SEMANTIC_WEIGHT = float(os.environ.get("OBSIDIAN_RRF_SEMANTIC_WEIGHT") or "20.0")
 # Lexical rank carries signal only near the top: on paraphrase queries the
 # tail of the lexical ranking is term-frequency noise, and letting 25 noisy
-# entries vote demoted semantic answers. Lexical votes are capped to its
-# strongest few; semantic keeps the full fusion depth.
+# entries vote demoted semantic answers.
+#
+# The default does NOT cap it (#262). This is the lever for that failure, and it
+# ships at _FUSE_DEPTH, so `min(_FUSE_DEPTH, _FUSE_LEX_DEPTH)` in _semantic_fuse
+# is the full depth until someone sets the variable - the sweep that chose
+# _RRF_SEMANTIC_WEIGHT never picked a value here. Lowering it (5-10) is the
+# documented way out when a lexical tail displaces an exact match; it is not the
+# default because no measured sweep has backed one, and the weight already
+# converges the fusion to pure-semantic quality on the case sets that were run.
 _FUSE_LEX_DEPTH = int(os.environ.get("OBSIDIAN_RRF_LEX_DEPTH") or "25")
 # The semantic index is built on demand and never invalidates itself, so a note
 # written after the last build is invisible to the semantic arm. On English
