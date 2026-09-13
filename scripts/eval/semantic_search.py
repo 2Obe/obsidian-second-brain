@@ -376,7 +376,14 @@ def build_index(vault: Path, verbose: bool = True) -> dict:
             print(f"  embedded {embedded} notes...", file=sys.stderr)
 
     out = {"model": EMBED_MODEL, "format": 2, "notes": new}
-    index_path.write_text(json.dumps(out), encoding="utf-8")
+    # ensure_ascii=False (#259): the default escapes every non-ASCII note path
+    # to \uXXXX, and vault_health's coverage check reads keys out of this file
+    # with a streamed regex rather than json.load - it never decodes escapes, so
+    # a Cyrillic or CJK title was counted as missing from an index that held it
+    # (552-note vault: 296 reported missing, 0 actually were). Every other JSON
+    # writer in this repo already passes ensure_ascii=False; this one was the
+    # outlier. It also makes a 26MB index file readable.
+    index_path.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
     if verbose:
         total_eligible = len(new) + failed
         pct = (100.0 * len(new) / total_eligible) if total_eligible else 100.0

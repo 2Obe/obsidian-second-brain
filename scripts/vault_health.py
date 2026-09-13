@@ -757,6 +757,23 @@ _INDEX_KEY_RE = re.compile(r'"((?:[^"\\]|\\.)+?\.md)"\s*:\s*\{')
 INDEX_STALE_PCT = 5.0
 
 
+def _decode_index_key(raw: str) -> str:
+    """One captured index key, as the path it names.
+
+    The capture is the body of a JSON string, so `json.loads` on it quoted is
+    the decoder - it is only called when there is an escape to resolve, which
+    keeps an all-ASCII index on the same fast path it had before. A malformed
+    escape is left alone: an unreadable key should read as one missing note,
+    never as a crashed health check.
+    """
+    if "\\" not in raw:
+        return raw
+    try:
+        return json.loads(f'"{raw}"')
+    except json.JSONDecodeError:
+        return raw
+
+
 def _indexed_paths(index_path: Path, chunk: int = 1 << 20) -> set:
     """Note paths present in the semantic index, read as a stream.
 
@@ -767,13 +784,20 @@ def _indexed_paths(index_path: Path, chunk: int = 1 << 20) -> set:
 
     `chunk` is a parameter only so the seam behaviour can be tested deterministically
     at a small size; at the default a note key cannot span two boundaries.
+
+    Keys are decoded as JSON strings before they are returned (#259). Scanning
+    text rather than parsing it means a `\\uXXXX` escape arrives here verbatim,
+    and an index written by any build before the writer switched to
+    `ensure_ascii=False` stores every non-ASCII path that way - so a Cyrillic or
+    CJK note read out of it never matched its own vault path and was reported
+    missing from an index that held it.
     """
     found = set()
     tail = ""
     with index_path.open("r", encoding="utf-8", errors="replace") as fh:
         while block := fh.read(chunk):
             buf = tail + block
-            found.update(m.group(1) for m in _INDEX_KEY_RE.finditer(buf))
+            found.update(_decode_index_key(m.group(1)) for m in _INDEX_KEY_RE.finditer(buf))
             tail = buf[-4096:]
     return found
 
