@@ -1019,6 +1019,141 @@ def check_wanted_notes(notes: dict, vault: Path, excludes=None) -> list:
     return issues
 
 
+# --- source-payload completeness (#194) --------------------------------------
+# A source card can carry a live `source_url`, pass every structural check, and
+# still retain no evidence at all. The three checks below are about that gap
+# only; none of them judges how long a source ought to be.
+_FM_FIELD_RE_CACHE: dict = {}
+SOURCE_CAPTURE_SCOPES = ("full-local", "bounded-local", "url-only")
+# Deliberately tiny. This is not an opinion about how much text a source should
+# hold - a captured tweet is legitimately three lines. It is the floor at which
+# "I retained this content locally" is self-evidently untrue.
+MIN_RETAINED_PAYLOAD_CHARS = 50
+
+
+def _fm_field(frontmatter: str, field: str) -> str:
+    """One scalar frontmatter value, lowercased and unquoted, or ""."""
+    rx = _FM_FIELD_RE_CACHE.get(field)
+    if rx is None:
+        rx = re.compile(rf"^{re.escape(field)}:\s*(.+?)\s*$", re.MULTILINE)
+        _FM_FIELD_RE_CACHE[field] = rx
+    m = rx.search(frontmatter)
+    return m.group(1).strip().strip("\"'").lower() if m else ""
+
+
+def load_source_policy(vault: Path) -> str:
+    """`source_policy` from `<vault>/.vault-config.json`: "default" or "strict-local".
+
+    Same contract as load_rewrite_policy (#250): a missing file, a missing key,
+    a malformed file or any other value all mean "default". Strict mode raises
+    the severity of an unretained source, it does not invent new findings.
+    """
+    cfg_path = vault / ".vault-config.json"
+    if not cfg_path.is_file():
+        return "default"
+    try:
+        data = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return "default"
+    if not isinstance(data, dict):
+        return "default"
+    value = data.get("source_policy")
+    if isinstance(value, str) and value.strip().lower() == "strict-local":
+        return "strict-local"
+    return "default"
+
+
+def check_source_payload(notes: dict, vault: Path) -> list:
+    """Sources whose retained evidence does not match what they claim (#194).
+
+    Three distinct problems, deliberately separated because they carry very
+    different weight:
+
+    1. A note that declares it retained the content locally and has no body.
+       That is a self-contradiction inside one file, so it is an error and needs
+       no policy to justify it.
+    2. Active knowledge resting on a `url-only` record. The vault kept a
+       locator, not evidence: if the page dies or changes, the concept and
+       synthesis notes built on it have nothing behind them and nothing says so.
+       A warning, because keeping only a URL is a legitimate choice.
+    3. Sources with no `capture_scope` at all - every source written before this
+       field existed. Reported once, as info, never per note: a research vault
+       has thousands and a wall of findings would bury 1 and 2.
+
+    `source_policy: strict-local` raises 2 and 3 by one level for a vault that
+    has decided a locator is not a source.
+    """
+    strict = load_source_policy(vault) == "strict-local"
+    sources, unscoped, empty_claims = {}, [], []
+    for rel, note in notes.items():
+        if _fm_field(note["frontmatter"], "type") != "source":
+            continue
+        scope = _fm_field(note["frontmatter"], "capture_scope")
+        sources[rel] = scope
+        body = FRONTMATTER_RE.sub("", note["content"], count=1).strip()
+        if not scope:
+            unscoped.append(rel)
+        elif scope in ("full-local", "bounded-local") and len(body) < MIN_RETAINED_PAYLOAD_CHARS:
+            empty_claims.append((rel, scope, len(body)))
+
+    issues = []
+    for rel, scope, size in sorted(empty_claims):
+        issues.append({
+            "type": "source_payload",
+            "severity": "error",
+            "message": (f"declares capture_scope: {scope} but retains a {size}-character body - "
+                        "the note claims evidence it does not hold. Re-capture the source, or "
+                        "set capture_scope: url-only to say plainly that only the locator was kept"),
+            "files": [rel],
+        })
+
+    url_only = {rel for rel, scope in sources.items() if scope == "url-only"}
+    if url_only:
+        # Who leans on these. Same link indexing as check_orphans: match on the
+        # stem and its path-qualified and hyphenated spellings, and never count
+        # a source's link to itself or to another source as active knowledge.
+        by_key: dict = defaultdict(set)
+        for rel in url_only:
+            stem = _nfc(Path(rel).stem).lower()
+            for key in {stem, stem.replace(" ", "-"), rel[:-3].lower()}:
+                by_key[key].add(rel)
+        supported: dict = defaultdict(set)
+        for src_rel, note in notes.items():
+            if src_rel in sources:
+                continue  # a raw source citing another raw source is not derived knowledge
+            for link in note["links"]:
+                lk = _nfc(link).lower()
+                if lk.endswith(".md"):
+                    lk = lk[:-3]
+                for key in {lk, lk.replace(" ", "-"), lk.rsplit("/", 1)[-1]}:
+                    for target in by_key.get(key, ()):
+                        supported[target].add(src_rel)
+        for rel in sorted(supported):
+            dependents = sorted(supported[rel])
+            shown = ", ".join(dependents[:5]) + ("..." if len(dependents) > 5 else "")
+            issues.append({
+                "type": "source_payload",
+                "severity": "error" if strict else "warning",
+                "message": (f"capture_scope: url-only, and {len(dependents)} note(s) rest on it "
+                            f"({shown}). The vault kept the locator, not the evidence: if the page "
+                            "changes or dies, nothing behind those claims can be re-read"),
+                "files": [rel] + dependents,
+            })
+
+    if unscoped:
+        issues.append({
+            "type": "source_payload",
+            "severity": "warning" if strict else "info",
+            "message": (f"{len(unscoped)} source note(s) have no capture_scope, so how much of each "
+                        "source was actually retained is unknown (e.g. "
+                        + ", ".join(sorted(unscoped)[:3])
+                        + "). Sources written before the field existed read this way; "
+                          "set full-local, bounded-local or url-only as you touch them"),
+            "files": sorted(unscoped),
+        })
+    return issues
+
+
 def check_template_leftovers(notes: dict) -> list:
     issues = []
     for rel, note in notes.items():
@@ -1065,6 +1200,7 @@ def run_health_check(vault: Path) -> dict:
         ("Missing attachments",
          [i for i in link_gaps if i["type"] == "missing_attachment"]),
         ("Template leftovers", check_template_leftovers(notes)),
+        ("Source payload", check_source_payload(notes, vault)),
         ("Semantic index coverage", check_semantic_index(vault, notes)),
         ("Rewrite policy", check_rewrite_policy(vault)),
     ]
