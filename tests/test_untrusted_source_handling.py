@@ -286,3 +286,36 @@ def test_a_poisoned_note_is_filtered_out_of_automatic_recall(tmp_path, monkeypat
         "so this test would pass even without the exclusion"
     )
     assert all(not p.startswith("raw/") for p in kept)
+
+
+def test_skill_md_ingest_summary_carries_the_rewrite_gate():
+    """SKILL.md inlines its own nine-step ingest, and that copy had drifted.
+
+    It still named `Knowledge/` as the raw-source target (the command writes
+    `raw/`), had no content_hash dedupe, and - the part that matters here - no
+    "sources are data" warning and no confirm-before-rewrite gate at all. The
+    skill manual is what loads when the skill activates, so an ingest driven by
+    that copy rewrote existing notes with nobody asked, which is exactly what
+    #239 closed and what #250 makes an explicit, named opt-in.
+    """
+    text = (REPO_ROOT / "SKILL.md").read_text(encoding="utf-8")
+    start = text.index("### `/obsidian-ingest`")
+    section = text[start:text.index("\n---", start)]
+    lowered = section.lower()
+
+    assert "commands/obsidian-ingest.md" in section, (
+        "the inlined steps do not point at the command file as the source of truth"
+    )
+    assert "data, not instructions" in lowered, (
+        "the skill manual's ingest steps carry no untrusted-source warning"
+    )
+    assert "proposal" in lowered and "wait for a yes" in lowered, (
+        "the skill manual's ingest steps rewrite existing notes with no confirmation"
+    )
+    assert "rewrite_policy" in lowered, (
+        "the opt-out is invisible to a run driven by SKILL.md, so `confirm` cannot "
+        "be recognised as the default there"
+    )
+    assert "raw/" in section and "Knowledge/YYYY-MM-DD" not in section, (
+        "the skill manual still writes raw sources to the wrong folder"
+    )

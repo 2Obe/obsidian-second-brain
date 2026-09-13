@@ -20,9 +20,12 @@ Optional per-vault config at `<vault>/.vault-config.json` extends the built-in
 exclude list (additive, never overrides the hardcoded EXCLUDE_DIRS):
     {
       "exclude-dirs":  ["_card-pool", "_candidates"],  # dir names anywhere in the tree
-      "exclude-paths": ["Archive/Backup"]              # vault-relative path prefixes
+      "exclude-paths": ["Archive/Backup"],             # vault-relative path prefixes
+      "rewrite_policy": "unattended"                   # opt out of the /obsidian-ingest
+                                                       # confirm-before-rewrite gate (#250)
     }
-A missing or malformed file is ignored silently. See VaultExcludes.
+A missing or malformed file is ignored silently. See VaultExcludes, and
+load_rewrite_policy for the one key that is not about exclusions.
 """
 
 import argparse
