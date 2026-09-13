@@ -40,8 +40,10 @@ Use the obsidian-second-brain skill. Execute `/obsidian-init`:
 
    Skip any base file that already exists in `Bases/` - never overwrite.
 
-8. Write `_CLAUDE.md`, `index.md`, root `log.md` (pointer), `Logs/YYYY-MM-DD.md` (today's entries), and any new `Bases/*.base` files
-9. Confirm what was written and tell the user to restart their Claude session so the new files take effect
+8. Rewrite policy, asked once (#250). If `<vault>/.vault-config.json` has no `rewrite_policy` key, ask one question: does this vault keep the confirm-before-rewrite gate on `/obsidian-ingest` (the default, `confirm`), or does it run unattended with its own review layer such as git history (`unattended`)? Say the cost of `unattended` in one sentence: a poisoned source can then rewrite existing notes with nobody asked. Write the key only when the answer is `unattended`; the default needs no key. Merge into the existing file if there is one - never drop its other keys (`exclude-dirs`, `exclude-paths`, `exclude-link-scan`). If the key already exists, do not ask again.
+
+9. Write `_CLAUDE.md`, `index.md`, root `log.md` (pointer), `Logs/YYYY-MM-DD.md` (today's entries), and any new `Bases/*.base` files
+10. Confirm what was written and tell the user to restart their Claude session so the new files take effect
 
 If `_CLAUDE.md` already exists: show a diff of what would change and ask before overwriting.
 If `index.md` already exists: regenerate it (it's always a fresh catalog of current vault state).

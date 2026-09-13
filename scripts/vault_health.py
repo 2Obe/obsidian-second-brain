@@ -20,9 +20,12 @@ Optional per-vault config at `<vault>/.vault-config.json` extends the built-in
 exclude list (additive, never overrides the hardcoded EXCLUDE_DIRS):
     {
       "exclude-dirs":  ["_card-pool", "_candidates"],  # dir names anywhere in the tree
-      "exclude-paths": ["Archive/Backup"]              # vault-relative path prefixes
+      "exclude-paths": ["Archive/Backup"],             # vault-relative path prefixes
+      "rewrite_policy": "unattended"                   # opt out of the /obsidian-ingest
+                                                       # confirm-before-rewrite gate (#250)
     }
-A missing or malformed file is ignored silently. See VaultExcludes.
+A missing or malformed file is ignored silently. See VaultExcludes, and
+load_rewrite_policy for the one key that is not about exclusions.
 """
 
 import argparse
@@ -198,6 +201,49 @@ def load_vault_config(vault: Path) -> VaultExcludes:
     if isinstance(raw_link, list):
         link_scan = [g for g in raw_link if isinstance(g, str) and g]
     return VaultExcludes(dirs, paths, link_scan)
+
+
+REWRITE_POLICIES = ("confirm", "unattended")
+
+
+def load_rewrite_policy(vault: Path) -> str:
+    """Read `rewrite_policy` from `<vault>/.vault-config.json` (#250).
+
+    `confirm` (the default) keeps /obsidian-ingest's confirm-before-rewrite
+    gate; `unattended` lets the command write rewrites of existing notes
+    without asking. The opt-out is never inferred: a missing file, a missing
+    key, a malformed file, a non-string, or any other value all mean
+    `confirm`, the same missing-file contract as load_vault_config."""
+    cfg_path = vault / ".vault-config.json"
+    if not cfg_path.is_file():
+        return "confirm"
+    try:
+        data = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return "confirm"
+    if not isinstance(data, dict):
+        return "confirm"
+    value = data.get("rewrite_policy")
+    if isinstance(value, str) and value.strip().lower() == "unattended":
+        return "unattended"
+    return "confirm"
+
+
+def check_rewrite_policy(vault: Path) -> list:
+    """One info line when the vault runs without the rewrite gate, so a reader
+    of the health report knows rewrites land unreviewed by a person. Nothing
+    is reported for the default; there is nothing to fix either way."""
+    if load_rewrite_policy(vault) != "unattended":
+        return []
+    return [{
+        "type": "rewrite_policy",
+        "severity": "info",
+        "message": ("rewrite_policy: unattended - /obsidian-ingest rewrites existing "
+                    "notes without confirmation (#250); this vault reviews rewrites "
+                    "through its own layer, not a prompt. Remove the key from "
+                    ".vault-config.json to restore the default"),
+        "files": [".vault-config.json"],
+    }]
 
 
 # One `##` heading per canonical tag, its synonyms as a `-` list underneath -
@@ -996,6 +1042,7 @@ def run_health_check(vault: Path) -> dict:
          [i for i in link_gaps if i["type"] == "missing_attachment"]),
         ("Template leftovers", check_template_leftovers(notes)),
         ("Semantic index coverage", check_semantic_index(vault, notes)),
+        ("Rewrite policy", check_rewrite_policy(vault)),
     ]
 
     all_issues = []

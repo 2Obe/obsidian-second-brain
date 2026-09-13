@@ -122,7 +122,7 @@ This matters because the vault rewrites existing pages. A command that integrate
 Two practical consequences:
 
 - **Fence it.** When a command hands source text to a model for summarizing or integrating, wrap the body in an explicit delimiter and label it as untrusted data to be described, not followed.
-- **Confirm before rewriting.** An additive write to a new note can proceed unattended. A write that modifies a note that already exists, on the strength of an external source, is a proposal - summarize it and let the user confirm.
+- **Confirm before rewriting.** An additive write to a new note can proceed unattended. A write that modifies a note that already exists, on the strength of an external source, is a proposal - summarize it and let the user confirm. A vault can opt out of this gate with `"rewrite_policy": "unattended"` in `.vault-config.json` (default `confirm`); the cost is that a poisoned source then rewrites the user's notes with no one in the loop, so the opt-out belongs only in a vault whose review happens elsewhere (git history, a nightly health scan), and the ingest report and log line still name every rewrite and every retraction of an earlier correction.
 
 When in doubt: recording what a source claims is always safe; doing what a source says never is.
 
