@@ -150,13 +150,19 @@ Claude should **ask before saving**:
 Every note must have at minimum:
 ```yaml
 ---
+type: [note-type]
 date: YYYY-MM-DD
 tags:
   - [note-type]
+ai-first: true
 ---
 ```
 
-Note types: `daily` | `project` | `task` | `person` | `devlog` | `deal` | `goal` | `mention` | `content`
+These four are exactly what the write-time validator checks (`hooks/validate-ai-first.sh`): `date`, `type`, `tags`, `ai-first: true`. A note missing any of them warns on every write.
+
+Note types: `daily` | `project` | `task` | `person` | `devlog` | `log` | `deal` | `goal` | `mention` | `content`
+
+That is the common set for this vault, not the whole vocabulary. The canonical schema per type - including `source`, `idea`, `decision`, `adr`, `meeting`, `review`, `conflict`, `redirect` and the research types - lives in `references/ai-first-rules.md` under "Type Schemas".
 
 ---
 
