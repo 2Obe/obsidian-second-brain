@@ -77,7 +77,7 @@ elif command -v python >/dev/null 2>&1; then
   python "$SKILL_DIR/scripts/setup_settings_hook.py"
 else
   echo "  python not found - add this SessionStart hook to $CLAUDE_DIR/settings.json manually:"
-  echo "    python3 \"$SKILLS_DIR/obsidian-second-brain/hooks/load_vault_context.py\""
+  echo "    \"$SKILLS_DIR/obsidian-second-brain/hooks/load_vault_context.sh\""
 fi
 
 # ── Research toolkit setup (optional) ──────────────────────────────

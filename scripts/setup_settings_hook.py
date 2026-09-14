@@ -17,8 +17,12 @@ from pathlib import Path
 # The hook is registered at the canonical skill-install location (a symlink or a direct
 # clone that install.sh sets up), not the repo clone path, so it stays valid if the repo
 # lives elsewhere. The hook resolves its own real path at runtime, so this is enough.
-HOOK_PATH = Path.home() / ".claude" / "skills" / "obsidian-second-brain" / "hooks" / "load_vault_context.py"
-HOOK_CMD = f"python3 {HOOK_PATH}"
+# The .sh wrapper, not the .py. `python3` is the Microsoft Store App Execution
+# Alias on a stock Windows install: it exists, prints nothing, exits non-zero, so
+# the hook injected nothing and said nothing (#269). The wrapper resolves an
+# interpreter that runs before handing over.
+HOOK_PATH = Path.home() / ".claude" / "skills" / "obsidian-second-brain" / "hooks" / "load_vault_context.sh"
+HOOK_CMD = str(HOOK_PATH)
 
 
 def register(settings: dict) -> tuple[dict, str]:
@@ -27,7 +31,10 @@ def register(settings: dict) -> tuple[dict, str]:
     session_start = hooks.setdefault("SessionStart", [])
     for group in session_start:
         for h in group.get("hooks", []):
-            if "load_vault_context.py" in h.get("command", ""):
+            # Matched without the extension so an entry registered before #269
+            # (`python3 <...>/load_vault_context.py`) is found and rewritten, not
+            # left in place next to a second, working one.
+            if "load_vault_context" in h.get("command", ""):
                 if h["command"] == HOOK_CMD:
                     return settings, "unchanged"
                 h["command"] = HOOK_CMD
