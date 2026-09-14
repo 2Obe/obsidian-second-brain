@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-09-15 - The Silent Failure
+
 ### Added
 
 - **`export_okf.py` targets OKF v0.2, which supersedes the v0.1 the exporter was written against (raised in #213 by @aermak).** Google published v0.2 on 2026-07-25 with two breaking changes, and the bundle was emitting v0.1 shapes: a concept's production time moved from a bare `timestamp` to `generated: {by, at}`, and provenance moved from a body `# Citations` list to a frontmatter `sources` list whose every entry requires a `resource`. Both are now emitted, and a wikilinked source resolves to the same bundle-relative path the body link does, so a citation and the link it came from never disagree about which file is meant; a source that resolves to neither a URL nor a real note is dropped rather than exported as a dangling resource. v0.2's optional lifecycle fields are emitted only where the vault states them: a note retired by `/obsidian-merge` is `deprecated` by construction, and a status this project already treats as withdrawn maps across - but `done`, `closed`, `parked` and `inactive` deliberately do not, because a finished project is completed knowledge rather than withdrawn knowledge and exporting it as deprecated would tell every consumer to discount a true record. `stale_after` is not invented. The bundle index declares `okf_version: "0.2"`. Four tests in `tests/test_export_okf.py`.
