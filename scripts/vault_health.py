@@ -1001,8 +1001,15 @@ def check_wanted_notes(notes: dict, vault: Path, excludes=None) -> list:
                 or link_dash_norm in all_files
             )
             if not resolved:
-                potential_folder = vault / link
-                if not potential_folder.is_dir():
+                # A "link" longer than the filesystem allows for a name (inline
+                # script in a captured page, `[[null,null,...]]`) makes is_dir()
+                # raise OSError before Python 3.14, which aborted the scan for the
+                # whole vault (#272). A path that cannot exist is not a folder.
+                try:
+                    is_folder = (vault / link).is_dir()
+                except OSError:
+                    is_folder = False
+                if not is_folder:
                     is_asset = link_name.lower().endswith(_ASSET_SUFFIXES)
                     issues.append({
                         "type": "missing_attachment" if is_asset else "wanted_note",
