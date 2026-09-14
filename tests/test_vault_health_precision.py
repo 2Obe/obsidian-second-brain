@@ -214,3 +214,14 @@ def test_invalid_tags_are_flagged_and_valid_ones_are_not(tmp_path):
     assert all(i["severity"] == "warning" for i in found)
     assert not [i for i in found if "good.md" in i["files"]]
     assert payload["counts"]["Invalid tags"] == 3
+
+
+def test_overlong_wikilink_is_a_wanted_note_not_a_crash(tmp_path):
+    """#272: inline script in a captured page (`[[null,null,...]]`) reads as a link
+    longer than the filesystem allows for a name. The folder check raised OSError
+    on Python <3.14 and ended the scan for the whole vault."""
+    target = ",".join(["null"] * 120)
+    (tmp_path / "scraped.md").write_text(
+        f"# scraped\n\nwindow.IJ_values = [[{target}]];\n", encoding="utf-8")
+    wanted = _issues(_health(tmp_path), "wanted_note")
+    assert any(target in i["message"] for i in wanted), wanted
