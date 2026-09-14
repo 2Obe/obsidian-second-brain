@@ -1228,6 +1228,20 @@ def bootstrap(vault: Path, name: str, preset_key: str, mode: str, subject: str,
         write(vault / "_CLAUDE.md",
               claude_md_personal(name, preset_key, preset, jobs, vault, folders=folders))
 
+    # ── .claude/CLAUDE.md: native import of the manual ─────────────────────────
+    # Claude Code loads a CLAUDE.md found from the working directory and follows
+    # its @imports, with a 4 MiB limit and no interpreter involved. That makes it
+    # the reliable way to put _CLAUDE.md in front of a session: the SessionStart
+    # hook is capped at 10,000 characters of context, and a real manual outgrows
+    # that (#270). The hook still runs - it publishes the skill root, which no
+    # import can - and skips the manual when this file has already loaded it.
+    (vault / ".claude").mkdir(exist_ok=True)
+    write(vault / ".claude" / "CLAUDE.md",
+          "# Vault operating manual\n\n"
+          "The manual lives at the vault root so every agent surface can find it.\n"
+          "This import loads it in full for Claude Code sessions started here.\n\n"
+          "@../_CLAUDE.md\n")
+
     # ── Home ──────────────────────────────────────────────────────────────────
     write(vault / "Home.md", render_home(name, preset_key, preset, jobs, mode, subject))
 
