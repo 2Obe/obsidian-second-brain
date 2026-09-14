@@ -42,7 +42,7 @@ from pathlib import Path
 from pathlib import Path as _Path
 
 _sys.path.insert(0, str(_Path(__file__).resolve().parent))
-from vault_scan import BASE_EXCLUDE_DIRS  # noqa: E402
+from vault_scan import BASE_EXCLUDE_DIRS, embed_exclude_prefixes, is_embed_excluded  # noqa: E402
 
 TODAY = date.today()
 # Shared base, see scripts/vault_scan.py. This module owns the user-facing
@@ -824,17 +824,22 @@ def check_semantic_index(vault: Path, notes) -> list:
                         "semantic search is falling back to literal word match"),
             "files": [],
         }]
-    missing = sorted(rel for rel in notes if rel not in indexed)
+    # Notes OBSIDIAN_EMBED_EXCLUDE keeps out of the index are not missing from it:
+    # the build skips them on purpose and the rebuild this warning recommends
+    # would skip them again, so counting them made the warning permanent (#273).
+    prefixes = embed_exclude_prefixes()
+    expected = [rel for rel in notes if not is_embed_excluded(rel, prefixes)]
+    missing = sorted(rel for rel in expected if rel not in indexed)
     if not missing:
         return []
-    pct = 100.0 * len(missing) / len(notes)
+    pct = 100.0 * len(missing) / len(expected)
     if pct < INDEX_STALE_PCT:
         return []
     return [{
         "type": "semantic_index",
         "severity": "warning",
         "message": (
-            f"Semantic index covers {len(notes) - len(missing)} of {len(notes)} notes; "
+            f"Semantic index covers {len(expected) - len(missing)} of {len(expected)} notes; "
             f"{len(missing)} ({pct:.0f}%) are missing and can only be found by literal "
             f"word match. Rebuild: uv run python scripts/eval/semantic_search.py "
             f'--path "{vault}" --build'

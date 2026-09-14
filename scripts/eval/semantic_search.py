@@ -49,9 +49,12 @@ EMBED_MODEL = os.environ.get("OBSIDIAN_EMBED_MODEL", "bge-m3")
 EMBED_BACKEND = os.environ.get("OBSIDIAN_EMBED_BACKEND", "ollama").lower()
 EMBED_URL = os.environ.get("OBSIDIAN_EMBED_URL", OLLAMA_URL).rstrip("/")
 EMBED_KEY = os.environ.get("OBSIDIAN_EMBED_KEY", "")
-EXCLUDE_PREFIXES = tuple(
-    p.strip() for p in os.environ.get("OBSIDIAN_EMBED_EXCLUDE", "").split(",") if p.strip()
-)
+# Parsed in scripts/vault_scan.py, which vault_health's coverage check shares, so
+# a note excluded here is never reported as missing from the index (#273).
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from vault_scan import embed_exclude_prefixes, is_embed_excluded  # noqa: E402
+
+EXCLUDE_PREFIXES = embed_exclude_prefixes()
 # Single source of truth: the MCP server owns the skip set, so the semantic
 # index and the lexical scan can never drift into different universes
 # (stress-test fix 10/24).
@@ -287,7 +290,7 @@ def _content_hash(text: str) -> str:
 
 
 def _excluded(rel: str) -> bool:
-    return any(rel == p or rel.startswith(p) for p in EXCLUDE_PREFIXES)
+    return is_embed_excluded(rel, EXCLUDE_PREFIXES)
 
 
 # --------------------------------------------------------------------------- #
