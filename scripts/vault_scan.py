@@ -25,6 +25,7 @@ point for `.vault-config.json`; this module is the floor beneath it.
 
 from __future__ import annotations
 
+import os
 import re
 
 # Never scanned by any tool. Everything here is machine-owned: version control,
@@ -73,6 +74,25 @@ def is_excluded(parts, excludes: frozenset[str]) -> bool:
     exactly what happened in vault_health's empty-folder check (B29).
     """
     return any(str(p).lower() in excludes for p in parts)
+
+
+# ── Semantic-index carve-out ────────────────────────────────────────────────
+# OBSIDIAN_EMBED_EXCLUDE names vault-relative path PREFIXES that are never
+# embedded. semantic_search applies it when it builds the index and vault_health
+# when it measures index coverage; parsing it once here keeps the two from
+# disagreeing about which notes the index is meant to hold (#273).
+
+
+def embed_exclude_prefixes(raw: str | None = None) -> tuple[str, ...]:
+    """OBSIDIAN_EMBED_EXCLUDE (comma-separated) as a tuple of prefixes, blanks dropped."""
+    if raw is None:
+        raw = os.environ.get("OBSIDIAN_EMBED_EXCLUDE", "")
+    return tuple(p.strip() for p in raw.split(",") if p.strip())
+
+
+def is_embed_excluded(rel: str, prefixes) -> bool:
+    """True when a vault-relative POSIX path equals or starts with any prefix."""
+    return any(rel == p or rel.startswith(p) for p in prefixes)
 
 
 # ── Frontmatter ─────────────────────────────────────────────────────────────

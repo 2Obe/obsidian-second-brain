@@ -108,6 +108,40 @@ def test_the_check_is_wired_into_the_health_run(vault):
     assert result["counts"]["Semantic index coverage"] == 1
 
 
+def test_notes_excluded_from_embedding_are_not_reported_missing(vault, monkeypatch):
+    """#273: OBSIDIAN_EMBED_EXCLUDE keeps a folder out of the index on purpose.
+    Counting those notes as missing made the warning permanent, because the
+    rebuild it recommends skips them again."""
+    (vault / "Private").mkdir()
+    for i in range(10):
+        (vault / "Private" / f"secret{i}.md").write_text(
+            "---\ntype: note\n---\n\nx\n", encoding="utf-8"
+        )
+    notes = vh.load_vault(vault)
+    _index(vault, [r for r in notes if not r.startswith("Private/")])
+
+    monkeypatch.setenv("OBSIDIAN_EMBED_EXCLUDE", "Private/")
+    assert vh.check_semantic_index(vault, notes) == []
+
+    monkeypatch.delenv("OBSIDIAN_EMBED_EXCLUDE")
+    assert len(vh.check_semantic_index(vault, notes)) == 1, "without the exclude the gap is real"
+
+
+def test_an_exclude_does_not_mask_a_real_gap(vault, monkeypatch):
+    """Coverage is measured over the notes the index should hold, so a stale index
+    still rings when an exclude is set, and the excluded note is not listed."""
+    (vault / "Private").mkdir()
+    (vault / "Private" / "secret.md").write_text("---\ntype: note\n---\n\nx\n", encoding="utf-8")
+    notes = vh.load_vault(vault)
+    _index(vault, [r for r in notes if not r.startswith("Private/")][:10])
+
+    monkeypatch.setenv("OBSIDIAN_EMBED_EXCLUDE", "Private/")
+    issues = vh.check_semantic_index(vault, notes)
+    assert len(issues) == 1
+    assert "10 of 20" in issues[0]["message"], issues[0]["message"]
+    assert "Private/secret.md" not in issues[0]["files"]
+
+
 # --- non-ASCII note paths (#259) ---------------------------------------------
 
 CYRILLIC = "Архитектура/Тестовая заметка.md"
