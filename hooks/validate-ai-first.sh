@@ -74,6 +74,32 @@ check_enabled() {
   [[ "$SKIP_CHECKS" != *",$1,"* ]]
 }
 
+# ── osb_python ───────────────────────────────────────────────────────────────
+# Echo a Python that actually runs, or nothing with a non-zero status.
+# `command -v python3` is not enough, and on Windows it is actively wrong: the
+# python.org installers - the default way to get Python there - ship python.exe
+# and py.exe and never python3.exe, so `python3` resolves to the Microsoft Store
+# App Execution Alias. That stub exists, prints nothing and exits non-zero, so an
+# existence test passes and the caller silently does nothing (#269). Every
+# candidate is therefore executed, not looked up. Uses bash 3.2 features only.
+osb_python() {
+  local candidate
+  # Unquoted on purpose: "py -3" is a command plus an argument.
+  for candidate in python3 python "py -3"; do
+    if $candidate -c "import sys" >/dev/null 2>&1; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  # Last resort: uv, which the toolkit already requires for its research scripts
+  # and which brings its own interpreter when the system has none on PATH.
+  if uv run --no-project python -c "import sys" >/dev/null 2>&1; then
+    printf '%s' "uv run --no-project python"
+    return 0
+  fi
+  return 1
+}
+
 # Compare paths in one form: forward slashes and a lowercase drive letter (the
 # same normalization hooks/load_vault_context.py applies). On Windows, Claude
 # Code hands the hook tool_input.file_path with backslashes ("C:\Users\...")
@@ -216,6 +242,15 @@ shopt -u nocasematch
 BASENAME=$(basename "$FILE")
 WARNINGS=()
 
+# Checks 5, 6 and 7 are Python. The interpreter is resolved once, by running it:
+# `command -v python3` passes on the Windows Store stub, which runs nothing, so
+# the three checks were skipped without a word and a note carrying an em-dash or
+# an sk- key passed silently on every Windows install (#269).
+PYTHON=$(osb_python) || PYTHON=""
+if [[ -z "$PYTHON" ]]; then
+  printf 'AI-first hook: no working Python found (tried python3, python, py -3, uv run), so checks 5-7 (substitution characters, secrets, tag syntax) did NOT run on %s.\n' "$BASENAME" >&2
+fi
+
 # A note saved with CRLF line endings (a Windows editor, git autocrlf) would fail
 # every delimiter check below, because each line carries a trailing carriage
 # return; the checks read a CR-free copy instead. BASENAME and the warnings
@@ -280,12 +315,12 @@ if check_enabled 4 && ! printf '%s\n' "$BODY" | grep -qE "$PREAMBLE_RE" ; then
 fi
 
 # ── Check 5: non-ASCII substitution characters ───────────────────────────────
-if check_enabled 5 && command -v python3 >/dev/null 2>&1; then
+if check_enabled 5 && [[ -n "$PYTHON" ]]; then
   # The Python scans read the real file: Python's text mode handles CRLF on its
   # own, and the mktemp path is a shell path (/tmp/...) that a native Windows
   # Python cannot open when the shell does not convert arguments, which would
   # have silently disabled these two checks.
-  NON_ASCII_HITS=$(python3 - "$FILE" <<'PYEOF'
+  NON_ASCII_HITS=$($PYTHON - "$FILE" <<'PYEOF'
 import re
 import sys
 
@@ -355,8 +390,8 @@ fi
 # ── Check 6: secrets never belong in a vault note ────────────────────────────
 # High-precision patterns only (a false positive here trains people to ignore
 # the hook). Catches real key material, not the word "password" in prose.
-if check_enabled 6 && command -v python3 >/dev/null 2>&1; then
-  SECRET_HITS=$(python3 - "$FILE" <<'PYEOF'
+if check_enabled 6 && [[ -n "$PYTHON" ]]; then
+  SECRET_HITS=$($PYTHON - "$FILE" <<'PYEOF'
 import re
 import sys
 
@@ -396,10 +431,10 @@ fi
 # `/` for nesting, and must contain at least one non-numeric character. `33`,
 # `2.0`, `q3 2026` are all silently broken in the UI. Same rule as
 # scripts/vault_health.py check_tag_syntax - keep the two in step.
-if check_enabled 7 && command -v python3 >/dev/null 2>&1; then
+if check_enabled 7 && [[ -n "$PYTHON" ]]; then
   # The script arrives on stdin (python3 -), so the frontmatter goes in via the
   # environment - piping it would be swallowed by the heredoc.
-  TAG_HITS=$(AI_FIRST_FRONTMATTER="$FRONTMATTER" python3 - <<'PYEOF'
+  TAG_HITS=$(AI_FIRST_FRONTMATTER="$FRONTMATTER" $PYTHON - <<'PYEOF'
 import os
 import re
 
