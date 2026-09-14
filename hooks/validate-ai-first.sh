@@ -18,7 +18,10 @@
 #   5. No banned non-ASCII substitution characters (em/en-dashes, curly
 #      quotes, smart apostrophes, Unicode math). Reports codepoint +
 #      suggested ASCII replacement. Explicit ban list; anything not in
-#      the list passes.
+#      the list passes. Dashes, quotes and the ellipsis are skipped on a
+#      line containing CJK text, where they are that language's correct
+#      punctuation and not a substitution at all (#271); Unicode math and
+#      the non-breaking space stay banned in every language.
 #   6. No secret material (API keys, private key blocks, quoted passwords)
 #   7. Every tag is valid Obsidian tag syntax. Obsidian renders a bad tag
 #      struck through with no error anywhere, so an agent never learns it
@@ -34,6 +37,8 @@
 #     operating surfaces, not knowledge notes), and any path containing
 #     /.git/ - those are system/template paths, not first-class notes
 #   - Skips any file not ending in .md
+#   - AI_FIRST_SKIP_CHECKS (env or the toolkit .env) turns individual checks
+#     off for a vault, comma-separated: AI_FIRST_SKIP_CHECKS=5
 #
 # Exit codes:
 #   0 = pass (silent), or warn via JSON on stdout (write is NOT reverted)
@@ -54,6 +59,19 @@ emit_ai_first_warning() {
     }
   }'
   exit 0
+}
+
+# ── Per-vault opt-out ────────────────────────────────────────────────────────
+# AI_FIRST_SKIP_CHECKS is a comma-separated list of check numbers a vault turns
+# off, e.g. AI_FIRST_SKIP_CHECKS=5. A check that fires on ordinary prose in a
+# vault's own language teaches the session to ignore the hook wholesale, which
+# costs more than the check earns (#271, and check 6's own comment says the same
+# about false positives). The escape is a config value so a vault does not have
+# to carry a local patch of this file. Read from the environment or the config
+# .env below, next to the vault path, so both halves of a marketplace install
+# are configured in one place.
+check_enabled() {
+  [[ "$SKIP_CHECKS" != *",$1,"* ]]
 }
 
 # Compare paths in one form: forward slashes and a lowercase drive letter (the
@@ -144,31 +162,39 @@ FILE_KEY=$(path_key "$FILE")
 # hook a silent no-op for exactly the installs that need it most. Same root
 # cause as #160 (MCP server) and #124 (research toolkit); this is the third code
 # path, swept when the hook turned out never to have been wired at all.
+#
+# Home for config and Claude Code state. On Windows shells (Git Bash, MSYS2,
+# Cygwin) that is USERPROFILE, which is what Python's Path.home() and Claude
+# Code resolve ~ to there; HOME can point at another drive (a corporate roaming
+# home) and would split the config between the bash and Python halves.
+# Elsewhere HOME is the home. Uses bash 3.2 features only.
+# Inline copy of scripts/platform-home.sh on purpose: this file is copied by
+# hand into other harnesses' hook systems and must stay standalone.
+# tests/test_platform_home.py fails if the copies drift.
+case "$(uname -s 2>/dev/null)" in
+  MINGW*|MSYS*|CYGWIN*)
+    OSB_WIN=1
+    OSB_HOME="${USERPROFILE:-$HOME}"
+    OSB_HOME="$(cygpath -u "$OSB_HOME" 2>/dev/null || printf '%s' "${OSB_HOME//\\//}")" ;;
+  *) OSB_WIN=0; OSB_HOME="$HOME" ;;
+esac
+ENV_FILE="${OBSIDIAN_ENV_FILE:-$OSB_HOME/.config/obsidian-second-brain/.env}"
+if [[ "$OSB_WIN" = 1 ]]; then ENV_FILE="${ENV_FILE//\\//}"; fi
+
+# Last assignment of a key in the config .env, CR and surrounding quotes off.
+env_value() {
+  [[ -r "$ENV_FILE" ]] || return 0
+  sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "$ENV_FILE" \
+    | tail -n 1 | tr -d '\r' | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//"
+}
+
 VAULT="${OBSIDIAN_VAULT_PATH:-}"
-if [[ -z "$VAULT" ]]; then
-  # Home for config and Claude Code state. On Windows shells (Git Bash, MSYS2,
-  # Cygwin) that is USERPROFILE, which is what Python's Path.home() and Claude
-  # Code resolve ~ to there; HOME can point at another drive (a corporate roaming
-  # home) and would split the config between the bash and Python halves.
-  # Elsewhere HOME is the home. Uses bash 3.2 features only.
-  # Inline copy of scripts/platform-home.sh on purpose: this file is copied by
-  # hand into other harnesses' hook systems and must stay standalone.
-  # tests/test_platform_home.py fails if the copies drift.
-  case "$(uname -s 2>/dev/null)" in
-    MINGW*|MSYS*|CYGWIN*)
-      OSB_WIN=1
-      OSB_HOME="${USERPROFILE:-$HOME}"
-      OSB_HOME="$(cygpath -u "$OSB_HOME" 2>/dev/null || printf '%s' "${OSB_HOME//\\//}")" ;;
-    *) OSB_WIN=0; OSB_HOME="$HOME" ;;
-  esac
-  ENV_FILE="${OBSIDIAN_ENV_FILE:-$OSB_HOME/.config/obsidian-second-brain/.env}"
-  if [[ "$OSB_WIN" = 1 ]]; then ENV_FILE="${ENV_FILE//\\//}"; fi
-  if [[ -r "$ENV_FILE" ]]; then
-    VAULT=$(sed -n 's/^[[:space:]]*OBSIDIAN_VAULT_PATH[[:space:]]*=[[:space:]]*//p' "$ENV_FILE" \
-      | tail -n 1 | tr -d '\r' | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
-  fi
-fi
+[[ -z "$VAULT" ]] && VAULT=$(env_value OBSIDIAN_VAULT_PATH)
 [[ -z "$VAULT" ]] && exit 0
+
+SKIP_RAW="${AI_FIRST_SKIP_CHECKS:-}"
+[[ -z "$SKIP_RAW" ]] && SKIP_RAW=$(env_value AI_FIRST_SKIP_CHECKS)
+SKIP_CHECKS=",$(printf '%s' "$SKIP_RAW" | tr -d '[:space:]'),"
 VAULT=$(normalize_path "$VAULT")
 VAULT="${VAULT%/}"
 VAULT_KEY=$(path_key "$VAULT")
@@ -206,14 +232,14 @@ fi
 
 # ── Check 1: frontmatter delimiters ──────────────────────────────────────────
 FIRST_LINE=$(head -1 "$READ_FILE")
-if [[ "$FIRST_LINE" != "---" ]]; then
+if check_enabled 1 && [[ "$FIRST_LINE" != "---" ]]; then
   # Without frontmatter we can't run the other checks meaningfully - surface
   # this single warning and exit.
   emit_ai_first_warning "AI-first warning: $BASENAME has no frontmatter (expected --- on the first line). AI-first notes need date/type/tags/ai-first metadata."
 fi
 
 DELIMITER_COUNT=$(grep -c '^---$' "$READ_FILE")
-if [[ "$DELIMITER_COUNT" -lt 2 ]]; then
+if check_enabled 1 && [[ "$DELIMITER_COUNT" -lt 2 ]]; then
   WARNINGS+=("$BASENAME frontmatter is missing the closing --- delimiter.")
 fi
 
@@ -222,7 +248,7 @@ FRONTMATTER=$(awk '/^---$/{c++; if (c==1) next; if (c==2) exit} c==1' "$READ_FIL
 
 # ── Check 2: tabs in frontmatter ─────────────────────────────────────────────
 TAB_CHAR=$'\t'
-if printf '%s' "$FRONTMATTER" | grep -q "$TAB_CHAR"; then
+if check_enabled 2 && printf '%s' "$FRONTMATTER" | grep -q "$TAB_CHAR"; then
   WARNINGS+=("$BASENAME frontmatter contains tab characters. YAML requires spaces only.")
 fi
 
@@ -232,12 +258,14 @@ has_field() {
   printf '%s\n' "$FRONTMATTER" | grep -qE "^${key}:"
 }
 
-has_field "date"  || WARNINGS+=("$BASENAME missing 'date:' in frontmatter.")
-has_field "type"  || WARNINGS+=("$BASENAME missing 'type:' in frontmatter.")
-has_field "tags"  || WARNINGS+=("$BASENAME missing 'tags:' in frontmatter.")
+if check_enabled 3; then
+  has_field "date"  || WARNINGS+=("$BASENAME missing 'date:' in frontmatter.")
+  has_field "type"  || WARNINGS+=("$BASENAME missing 'type:' in frontmatter.")
+  has_field "tags"  || WARNINGS+=("$BASENAME missing 'tags:' in frontmatter.")
 
-if ! printf '%s\n' "$FRONTMATTER" | grep -qE '^ai-first:[[:space:]]*true[[:space:]]*$'; then
-  WARNINGS+=("$BASENAME missing 'ai-first: true' in frontmatter.")
+  if ! printf '%s\n' "$FRONTMATTER" | grep -qE '^ai-first:[[:space:]]*true[[:space:]]*$'; then
+    WARNINGS+=("$BASENAME missing 'ai-first: true' in frontmatter.")
+  fi
 fi
 
 # ── Check 4: 'For future agent' preamble in body ────────────────────────────
@@ -247,46 +275,70 @@ BODY=$(awk '/^---$/{c++; if (c<2) next; next} c>=2' "$READ_FILE")
 # `> [!info]- For future agent` (any callout type, folded or not) a vault may
 # prefer so a human sees the note content first (#237). Nothing else counts.
 PREAMBLE_RE='^(##[[:space:]]+|>[[:space:]]*\[![A-Za-z][A-Za-z0-9_-]*\][-+]?[[:space:]]+)For future (agent|AI|Claude|Codex)[[:space:]]*$'
-if ! printf '%s\n' "$BODY" | grep -qE "$PREAMBLE_RE" ; then
+if check_enabled 4 && ! printf '%s\n' "$BODY" | grep -qE "$PREAMBLE_RE" ; then
   WARNINGS+=("$BASENAME missing '## For future agent' preamble (or its callout form '> [!info]- For future agent'; required by ai-first-rules.md rule #2).")
 fi
 
 # ── Check 5: non-ASCII substitution characters ───────────────────────────────
-if command -v python3 >/dev/null 2>&1; then
+if check_enabled 5 && command -v python3 >/dev/null 2>&1; then
   # The Python scans read the real file: Python's text mode handles CRLF on its
   # own, and the mktemp path is a shell path (/tmp/...) that a native Windows
   # Python cannot open when the shell does not convert arguments, which would
   # have silently disabled these two checks.
   NON_ASCII_HITS=$(python3 - "$FILE" <<'PYEOF'
+import re
 import sys
 
-BANNED = {
+# The ban exists because LLM output substitutes these for ASCII in ENGLISH
+# prose: an em-dash where a hyphen belongs, curly quotes where straight ones
+# do. Chinese, Japanese and Korean use the same codepoints as their ordinary
+# punctuation - U+201C/U+201D are the standard Simplified Chinese quotation
+# marks, a doubled U+2014 the standard dash, a doubled U+2026 the standard
+# ellipsis - and rewriting those to ASCII is a typography error, not a fix
+# (#271). So this set is skipped on a line whose own language decides it.
+ASCII_CONTEXT = {
     '—': ('U+2014 em-dash',            ' - '),
-    '–': ('U+2013 en-dash',             ' - '),
-    '“': ('U+201C left double quote',   '"'),
-    '”': ('U+201D right double quote',  '"'),
-    '‘': ('U+2018 left single quote',   "'"),
-    '’': ('U+2019 right single quote',  "'"),
-    '≥': ('U+2265 >=',                  '>='),
-    '≤': ('U+2264 <=',                  '<='),
-    '≠': ('U+2260 !=',                  '!='),
-    '…': ('U+2026 ellipsis',            '...'),
-    ' ': ('U+00A0 non-breaking space',  ' '),
+    '–': ('U+2013 en-dash',            ' - '),
+    '“': ('U+201C left double quote',  '"'),
+    '”': ('U+201D right double quote', '"'),
+    '‘': ('U+2018 left single quote',  "'"),
+    '’': ('U+2019 right single quote', "'"),
+    '…': ('U+2026 ellipsis',           '...'),
 }
+
+# Substitutions in every language: no script writes >= as U+2265, and a
+# non-breaking space is invisible damage wherever it lands.
+ALWAYS = {
+    '≥': ('U+2265 >=',                 '>='),
+    '≤': ('U+2264 <=',                 '<='),
+    '≠': ('U+2260 !=',                 '!='),
+    ' ': ('U+00A0 non-breaking space', ' '),
+}
+
+# Han, kana, Hangul, and the CJK punctuation and fullwidth blocks. One of these
+# on a line means the line's punctuation belongs to its own language, not to an
+# English default. Line-level on purpose: a false negative on a mixed line
+# costs one stray em-dash, a false positive costs the hook its credibility.
+CJK_RE = re.compile(
+    '[\u1100-\u11ff\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff'
+    '\ua960-\ua97f\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]'
+    '|[\U00020000-\U0002fa1f]'
+)
 
 path = sys.argv[1]
 seen = set()
 try:
     with open(path, encoding='utf-8', errors='replace') as fh:
         for lineno, line in enumerate(fh, 1):
+            banned = ALWAYS if CJK_RE.search(line) else {**ALWAYS, **ASCII_CONTEXT}
             for ch in line:
-                if ch not in BANNED:
+                if ch not in banned:
                     continue
                 key = (lineno, ch)
                 if key in seen:
                     continue
                 seen.add(key)
-                name, suggest = BANNED[ch]
+                name, suggest = banned[ch]
                 print(f"    line {lineno}: {name} -- try {suggest!r}")
 except OSError:
     pass
@@ -303,7 +355,7 @@ fi
 # ── Check 6: secrets never belong in a vault note ────────────────────────────
 # High-precision patterns only (a false positive here trains people to ignore
 # the hook). Catches real key material, not the word "password" in prose.
-if command -v python3 >/dev/null 2>&1; then
+if check_enabled 6 && command -v python3 >/dev/null 2>&1; then
   SECRET_HITS=$(python3 - "$FILE" <<'PYEOF'
 import re
 import sys
@@ -344,7 +396,7 @@ fi
 # `/` for nesting, and must contain at least one non-numeric character. `33`,
 # `2.0`, `q3 2026` are all silently broken in the UI. Same rule as
 # scripts/vault_health.py check_tag_syntax - keep the two in step.
-if command -v python3 >/dev/null 2>&1; then
+if check_enabled 7 && command -v python3 >/dev/null 2>&1; then
   # The script arrives on stdin (python3 -), so the frontmatter goes in via the
   # environment - piping it would be swallowed by the heredoc.
   TAG_HITS=$(AI_FIRST_FRONTMATTER="$FRONTMATTER" python3 - <<'PYEOF'
