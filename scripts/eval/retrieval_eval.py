@@ -54,10 +54,10 @@ except (Exception, SystemExit):  # pragma: no cover - fall back to a bare dotenv
     try:
         from dotenv import load_dotenv
 
-        load_dotenv(Path(
-            os.environ.get("OBSIDIAN_ENV_FILE")
-            or (Path.home() / ".config" / "obsidian-second-brain" / ".env")
-        ).expanduser())
+        sys.path.insert(0, str(REPO_ROOT / "scripts"))
+        import osb_env
+
+        load_dotenv(osb_env.env_file())
     except Exception:
         pass
 
