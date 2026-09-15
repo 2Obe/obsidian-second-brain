@@ -75,7 +75,7 @@ fi
 # The interpreter is found by running it, never by looking the name up: on a
 # stock Windows install `python3` is the Microsoft Store alias, which passes
 # `command -v` and exits non-zero, and under `set -e` that ended this installer
-# on the spot, with no hook registered and the steps below never reached (#269).
+# on the spot, with no hook registered and the steps below never reached (#281).
 echo "Registering session context hook..."
 if PYTHON=$(osb_python); then
   # Unquoted: PYTHON may be several words ("py -3", "uv run --no-project python").

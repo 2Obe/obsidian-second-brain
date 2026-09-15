@@ -30,8 +30,8 @@ def hook_command(path: Path) -> str:
 
     Claude Code hands a command hook to a shell, Git Bash on Windows. str(path) is
     C:\\Users\\... there, and Git Bash reads every backslash as an escape, so the hook
-    failed with "No such file or directory" at every session start; an unquoted path
-    with a space splits in two on any platform. Forward slashes run in Git Bash, and
+    failed with "No such file or directory" at every session start (#281); an unquoted
+    path with a space splits in two on any platform. Forward slashes run in Git Bash, and
     shlex.quote leaves an ordinary POSIX path exactly as str() wrote it, so an entry
     registered on macOS or Linux before this change still reads as unchanged.
     """

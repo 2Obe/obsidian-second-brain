@@ -77,8 +77,8 @@ def test_the_registered_command_runs_in_the_shell_that_executes_it(tmp_path):
     """Claude Code hands a hook command to a shell, Git Bash on Windows. The command
     was str(HOOK_PATH): on Windows that is C:\\Users\\... unquoted, and Git Bash reads
     every backslash as an escape, so the hook failed with "No such file or directory"
-    at every session start; on any platform a home with a space in it split the path
-    in two. The command is run here exactly as it would be registered."""
+    at every session start (#281); on any platform a home with a space in it split the
+    path in two. The command is run here exactly as it would be registered."""
     hooks = tmp_path / "home with a space" / "hooks"
     hooks.mkdir(parents=True)
     marker = tmp_path / "ran"

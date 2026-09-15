@@ -256,8 +256,8 @@ def _run_install_sh(tmp_path: Path, bin_dir: Path) -> tuple[subprocess.Completed
 
 
 def test_install_sh_resolves_the_interpreter_instead_of_running_python3():
-    """install.sh kept the shape #269 removed from both hooks: a `command -v
-    python3` guard in front of `python3 setup_settings_hook.py`."""
+    """install.sh kept the shape #280 removed from both hooks: a `command -v
+    python3` guard in front of `python3 setup_settings_hook.py` (#281)."""
     text = (REPO_ROOT / "install.sh").read_text(encoding="utf-8")
     assert "python-interpreter.sh" in text and "osb_python" in text
     assert 'python3 "$SKILL_DIR/scripts/setup_settings_hook.py"' not in text
