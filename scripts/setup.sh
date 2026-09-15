@@ -24,8 +24,8 @@ HOOK_SCRIPT="$SKILL_DIR/hooks/obsidian-bg-agent.sh"
 # The .sh wrapper, not the .py: it resolves an interpreter that actually runs
 # before handing over, which the bare `python3` name does not do on Windows (#269).
 SESSION_HOOK="$SKILL_DIR/hooks/load_vault_context.sh"
-ENV_FILE="${OBSIDIAN_ENV_FILE:-$OSB_HOME/.config/obsidian-second-brain/.env}"
-if [[ "$OSB_WIN" = 1 ]]; then ENV_FILE="${ENV_FILE//\\//}"; fi
+osb_env_file
+ENV_FILE="$OSB_ENV_FILE"
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 

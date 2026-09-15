@@ -123,11 +123,21 @@ def test_skill_md_command_count_matches_reality():
 def test_installers_honor_the_env_file_override():
     """OBSIDIAN_ENV_FILE relocates the config for every reader; the two scripts
     that write the file must write it to the same place, or setting the override
-    recreates the split configuration it exists to remove."""
+    recreates the split configuration it exists to remove.
+
+    Both used to spell the resolution out, and this test asserted on the literal
+    string, which made it a check that the duplication was still there rather
+    than that the behaviour was right. They now call osb_env_file from
+    scripts/platform-home.sh; what that helper resolves to, including the
+    override and the Windows backslash form, is covered in tests/test_osb_env.py,
+    which also checks it against the Python half."""
     for rel in ("install.sh", "scripts/setup.sh"):
         script = (REPO_ROOT / rel).read_text(encoding="utf-8")
-        assert 'ENV_FILE="${OBSIDIAN_ENV_FILE:-' in script, f"{rel} must derive ENV_FILE from OBSIDIAN_ENV_FILE"
-        assert 'ENV_FILE="${ENV_FILE//' in script, f"{rel} must accept a native backslash path in OBSIDIAN_ENV_FILE"
+        assert "osb_env_file" in script, f"{rel} must resolve the config path via osb_env_file"
+        assert 'ENV_FILE="$OSB_ENV_FILE"' in script, f"{rel} must use what osb_env_file resolved"
+        assert "OBSIDIAN_ENV_FILE:-" not in script, (
+            f"{rel} resolves the config path itself again; osb_env_file is the one place"
+        )
 
 
 # --- the published counts and the template's "minimum" ---------------------

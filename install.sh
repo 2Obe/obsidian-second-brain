@@ -13,8 +13,11 @@ CLAUDE_DIR="$OSB_HOME/.claude"
 COMMANDS_DIR="$CLAUDE_DIR/commands"
 SKILLS_DIR="$CLAUDE_DIR/skills"
 CONFIG_DIR="$OSB_HOME/.config/obsidian-second-brain"
-ENV_FILE="${OBSIDIAN_ENV_FILE:-$CONFIG_DIR/.env}"
-if [ "$OSB_WIN" = 1 ]; then ENV_FILE="${ENV_FILE//\\//}"; fi  # a native C:\... override must survive dirname
+# osb_env_file sets OSB_ENV_FILE: the config path, OBSIDIAN_ENV_FILE honoured and
+# a native C:\... override normalized so it survives dirname. One helper, so this
+# installer and every reader of the file it writes agree on where it is.
+osb_env_file
+ENV_FILE="$OSB_ENV_FILE"
 
 echo "Installing obsidian-second-brain..."
 
