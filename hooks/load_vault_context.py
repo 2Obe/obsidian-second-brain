@@ -57,6 +57,31 @@ def normalize(p: str) -> str:
     return p.rstrip("/")
 
 
+def resolve_vault_path() -> str:
+    """OBSIDIAN_VAULT_PATH from the environment, falling back to the documented
+    config .env. A marketplace install writes the vault path there and never
+    exports it as a real process env var, so an env-only check makes the vault
+    manual a silent no-op on every session, including one whose cwd IS the
+    vault - the check never once passes. Same root cause validate-ai-first.sh
+    already patches for (see its own comment, and #160/#124); this hook was
+    the missed instance.
+    """
+    vault = os.environ.get("OBSIDIAN_VAULT_PATH", "")
+    if vault:
+        return vault
+    env_file = os.environ.get("OBSIDIAN_ENV_FILE") or str(
+        Path.home() / ".config" / "obsidian-second-brain" / ".env"
+    )
+    try:
+        for line in Path(env_file).read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("OBSIDIAN_VAULT_PATH="):
+                vault = line.split("=", 1)[1].strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return vault
+
+
 def skill_root_block() -> str:
     """Where this skill is installed, plus how to run its scripts from anywhere."""
     root = os.environ.get("CLAUDE_PLUGIN_ROOT") or str(Path(__file__).resolve().parents[1])
@@ -71,7 +96,7 @@ def skill_root_block() -> str:
 
 def vault_manual_path() -> Path | None:
     """The vault's _CLAUDE.md when this session is inside that vault, else None."""
-    vault = os.environ.get("OBSIDIAN_VAULT_PATH", "")
+    vault = resolve_vault_path()
     if not vault:
         return None
     try:
