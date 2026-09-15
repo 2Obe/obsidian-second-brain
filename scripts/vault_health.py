@@ -104,6 +104,28 @@ def parse_tags(frontmatter: str) -> list:
     return [t.strip().strip('"\'').lower() for t in ALIAS_ITEM_RE.findall(block.group(1))]
 
 
+def _is_hidden(parts) -> bool:
+    """True for a path with a dot-prefixed component, which is not vault content.
+
+    The case that bit a real vault (#290): on a volume with no native extended
+    attributes (exFAT, FAT32, many SMB shares) macOS writes a small binary
+    `._<name>` companion beside every file it touches, to carry the xattrs the
+    filesystem cannot hold. `rglob("*.md")` matches `._Note.md`, so each
+    companion was parsed as a note and reported three times over - as an orphan,
+    as missing frontmatter, and as a same-title duplicate of the real note. On an
+    exFAT vault those findings outnumbered the real ones, and no
+    `.vault-config.json` key could suppress them: `exclude-dirs` matches
+    directory names and `exclude-paths` matches prefixes. Deleting them does not
+    help either, because macOS writes them again on the next save.
+
+    Dot-prefixed generally, not `._` specifically, because that is the rule
+    Obsidian itself applies: it indexes no dot-prefixed file or folder. The
+    named dot-directories in BASE_EXCLUDE_DIRS stay listed there; this catches
+    the ones nobody thought to name.
+    """
+    return any(str(p).startswith(".") for p in parts)
+
+
 class VaultExcludes:
     """Additive, user-configured exclusions loaded from `<vault>/.vault-config.json`.
 
@@ -142,6 +164,8 @@ class VaultExcludes:
         # Casefolded: the bootstrapper writes Templates/ while three sibling
         # tools spelled it templates, so the same folder was skipped or scanned
         # depending on which tool ran.
+        if _is_hidden(parts):
+            return True
         lowered = [str(p).lower() for p in parts]
         if any(p in EXCLUDE_DIRS for p in lowered):
             return True
@@ -166,6 +190,8 @@ class VaultExcludes:
         template assets still resolve) and the user's noisy `exclude-dirs` are
         pruned here. User `exclude-paths` are deliberately NOT applied, so a live
         link into an excluded path still resolves instead of ringing as broken."""
+        if _is_hidden(parts):
+            return True
         if any(p in FILE_INDEX_EXCLUDE_DIRS for p in parts):
             return True
         return bool(self.dirs) and any(p in self.dirs for p in parts)
@@ -581,6 +607,12 @@ def check_orphans(notes: dict) -> list:
     # let a short stem like "ai" hide inside "detail" and never ring the alarm
     # (stress-test fix 8/24). Path-qualified links count via their basename.
     link_sources: dict[str, set] = defaultdict(set)
+    # Path-qualified links are kept apart. Folding them in by basename, which is
+    # what this used to do, made one link vouch for every note sharing a
+    # filename anywhere in the vault (#290): linking `[[wiki/daily/2026-01-05]]`
+    # hid `Logs/2026-01-05.md` from the scan, and one linked
+    # `projects/*/README.md` covered all the others.
+    path_link_sources: dict[str, set] = defaultdict(set)
     for src_rel, note in notes.items():
         for link in note["links"]:
             lk = _nfc(link).lower()
@@ -588,11 +620,23 @@ def check_orphans(notes: dict) -> list:
             # targets the same note, so strip it before matching against stems.
             if lk.endswith(".md"):
                 lk = lk[:-3]
-            for key in {lk, lk.replace(" ", "-"), lk.rsplit("/", 1)[-1]}:
-                link_sources[key].add(src_rel)
+            target = path_link_sources if "/" in lk else link_sources
+            for key in {lk, lk.replace(" ", "-")}:
+                target[key].add(src_rel)
 
     def _has_incoming(rel: str, keys) -> bool:
-        return any(link_sources.get(k, set()) - {rel} for k in keys)
+        if any(link_sources.get(k, set()) - {rel} for k in keys):
+            return True
+        # A path-qualified link resolves to the note it points at, and Obsidian
+        # accepts the shortest path that is unique, so `[[alpha/README]]` reaches
+        # `projects/alpha/README.md`. Matched as a path suffix on a component
+        # boundary for that reason - never as a bare filename, which is the
+        # collision this separation exists to prevent.
+        rel_key = _nfc(rel[:-3] if rel.endswith(".md") else rel).lower()
+        return any(
+            (rel_key == pk or rel_key.endswith("/" + pk)) and (srcs - {rel})
+            for pk, srcs in path_link_sources.items()
+        )
 
     issues = []
     skip_folders = {"Daily", "Dev Logs", "Boards", "Templates", "Life Chapters",
