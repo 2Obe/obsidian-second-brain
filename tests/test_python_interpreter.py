@@ -242,6 +242,71 @@ def test_setup_sh_upgrades_a_hook_registered_before_the_fix(tmp_path):
     assert rewritten[0]["hooks"][0]["command"] == "/new/path/hooks/load_vault_context.sh"
 
 
+def _run_install_sh(tmp_path: Path, bin_dir: Path) -> tuple[subprocess.CompletedProcess, Path]:
+    """install.sh against a throwaway home, with bin_dir first on PATH. The one
+    prompt it asks (set up the research toolkit?) is answered no."""
+    home = tmp_path / "home"
+    home.mkdir()
+    env = dict(os.environ, HOME=str(home), USERPROFILE=str(home),
+               PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    env.pop("OBSIDIAN_ENV_FILE", None)
+    r = subprocess.run([BASH, str(REPO_ROOT / "install.sh")], input="N\n", env=env,
+                       capture_output=True, text=True, timeout=300)
+    return r, home
+
+
+def test_install_sh_resolves_the_interpreter_instead_of_running_python3():
+    """install.sh kept the shape #280 removed from both hooks: a `command -v
+    python3` guard in front of `python3 setup_settings_hook.py` (#281)."""
+    text = (REPO_ROOT / "install.sh").read_text(encoding="utf-8")
+    assert "python-interpreter.sh" in text and "osb_python" in text
+    assert 'python3 "$SKILL_DIR/scripts/setup_settings_hook.py"' not in text
+
+
+def test_install_sh_registers_the_hook_when_python3_is_the_store_alias(tmp_path):
+    """On a stock Windows install `python3` passes `command -v` and exits 9009 (49
+    once Git Bash truncates it), and install.sh runs under `set -e`: the installer
+    ended at "Registering session context hook...", registered nothing, and never
+    reached the research toolkit step or its closing instructions."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    alias = bin_dir / "python3"
+    alias.write_text("#!/bin/sh\nexit 9009\n", encoding="utf-8")
+    alias.chmod(0o755)
+    # A working interpreter under the next name the resolver tries.
+    working = bin_dir / "python"
+    working.write_text(f'#!/bin/sh\nexec "{Path(sys.executable).as_posix()}" "$@"\n',
+                       encoding="utf-8")
+    working.chmod(0o755)
+
+    r, home = _run_install_sh(tmp_path, bin_dir)
+    assert r.returncode == 0, r.stdout[-1500:] + r.stderr[-1500:]
+    assert "Done." in r.stdout, "the installer stopped before its last step"
+    settings = json.loads((home / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    commands = [h["command"] for group in settings["hooks"]["SessionStart"] for h in group["hooks"]]
+    registered = [c for c in commands if "load_vault_context.sh" in c]
+    assert registered, commands
+    # A backslash path is one Git Bash cannot run (see test_setup_settings_hook.py).
+    assert "\\" not in registered[0], registered[0]
+
+
+def test_install_sh_finishes_and_names_the_hook_when_no_python_runs(tmp_path):
+    """No interpreter at all must not end the installer either: it finishes and
+    prints the hook to add by hand, which the old fallback already promised."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name in ("python3", "python", "py", "uv"):
+        stub = bin_dir / name
+        stub.write_text("#!/bin/sh\nexit 9009\n", encoding="utf-8")
+        stub.chmod(0o755)
+
+    r, home = _run_install_sh(tmp_path, bin_dir)
+    assert r.returncode == 0, r.stdout[-1500:] + r.stderr[-1500:]
+    assert "Done." in r.stdout
+    assert "load_vault_context.sh" in r.stdout, "the manual instruction must name the hook"
+    assert not (home / ".claude" / "settings.json").exists()
+
+
 def test_the_wrapper_is_executable():
     """Claude Code runs the command as given; a non-executable hook is a silent
     failure of the kind this whole issue is about."""

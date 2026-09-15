@@ -12,6 +12,7 @@ valid JSON it prints a manual instruction and exits 0 rather than clobbering the
 from __future__ import annotations
 
 import json
+import shlex
 from pathlib import Path
 
 # The hook is registered at the canonical skill-install location (a symlink or a direct
@@ -22,7 +23,22 @@ from pathlib import Path
 # the hook injected nothing and said nothing (#269). The wrapper resolves an
 # interpreter that runs before handing over.
 HOOK_PATH = Path.home() / ".claude" / "skills" / "obsidian-second-brain" / "hooks" / "load_vault_context.sh"
-HOOK_CMD = str(HOOK_PATH)
+
+
+def hook_command(path: Path) -> str:
+    """The hook command as the shell that runs it will read it.
+
+    Claude Code hands a command hook to a shell, Git Bash on Windows. str(path) is
+    C:\\Users\\... there, and Git Bash reads every backslash as an escape, so the hook
+    failed with "No such file or directory" at every session start (#281); an unquoted
+    path with a space splits in two on any platform. Forward slashes run in Git Bash, and
+    shlex.quote leaves an ordinary POSIX path exactly as str() wrote it, so an entry
+    registered on macOS or Linux before this change still reads as unchanged.
+    """
+    return shlex.quote(path.as_posix())
+
+
+HOOK_CMD = hook_command(HOOK_PATH)
 
 
 def register(settings: dict) -> tuple[dict, str]:

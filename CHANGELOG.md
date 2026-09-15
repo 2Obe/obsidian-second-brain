@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **A skill install on Windows registers a SessionStart hook that runs (#281, by @i-so-late).** Two things stood between `install.sh` and a working hook on Windows, both found by running the 0.16.0 installer against a throwaway home on Windows 10. First, `install.sh` kept its own `command -v python3` guard in front of `python3 setup_settings_hook.py`, the shape #280 removed from both hooks. On a stock install that name is the Microsoft Store alias: it passes the guard and exits 9009, which Git Bash reports as 49, and under the installer's `set -e` the run ended at "Registering session context hook...", before anything was registered and before the research toolkit step. `install.sh` now sources `scripts/python-interpreter.sh` and registers the hook through `osb_python`; with no interpreter at all it finishes and prints the hook to add by hand. Second, `setup_settings_hook.py` registered the command as `str(HOOK_PATH)`, which on Windows is `C:\Users\...` with no quotes. Claude Code hands the command to Git Bash, which reads every backslash as an escape, so the hook would have failed with "No such file or directory" at every session start: a headless session given a SessionStart command in that form recorded a non-blocking hook error and never ran the script. The command is now `shlex.quote` of the forward-slash path, which Git Bash runs, which survives a home directory with a space in it, and which leaves an ordinary macOS or Linux path exactly as it was, so existing entries there are not rewritten. Tests in `tests/test_python_interpreter.py` run the real installer against a throwaway home, once with `python3` shadowed by the alias and once with every candidate failing; `tests/test_setup_settings_hook.py` runs the registered command through bash from a path with a space in it.
+
 ## [0.16.0] - 2026-09-15 - The Silent Failure
 
 ### Added
