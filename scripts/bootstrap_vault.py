@@ -32,6 +32,9 @@ Options:
     --style       Folder layout: obsidian | wiki (default: obsidian)
                   obsidian - Daily/, People/, Projects/ and the preset's topic folders
                   wiki     - wiki/daily/, wiki/entities/, wiki/projects/, boards/, templates/
+                             A preset folder the wiki layout does not rename keeps
+                             its own name under wiki/ (Sources/ -> wiki/sources/),
+                             so every preset builds the same vault in either layout.
 """
 
 import argparse
@@ -79,10 +82,10 @@ STYLES = ("obsidian", "wiki")
 
 # Obsidian-style preset folder -> its path in the wiki layout, following the
 # rows of references/folder-map.md (boards/ and templates/ come from the wiki
-# tree in references/vault-schema.md). A preset folder with no entry has no home
-# in the wiki layout - Goals/, Mentions/, Health/ and the other topic folders
-# appear only in the Obsidian-style tree, and no command files notes into them -
-# so a wiki-style vault does not create it, or the seed notes that live in it.
+# tree in references/vault-schema.md). This table carries the renames only: a
+# folder with no row keeps its own name under wiki/ (see _wiki_slug), so a
+# preset means the same vault in either layout and a folder added to a preset
+# later is not dropped from wiki-style vaults by default.
 WIKI_PATHS = {
     "Daily": "wiki/daily",
     "Dev Logs": "wiki/logs",
@@ -115,22 +118,56 @@ WIKI_DESCRIPTIONS = {
 }
 
 
-def resolve_folder(name: str, style: str = "obsidian") -> str | None:
-    """Where a preset folder lives in the given layout, or None when the wiki
-    layout has no home for it. Obsidian style is the preset's own name."""
+def _wiki_slug(name: str) -> str:
+    """The wiki-style path for a folder WIKI_PATHS does not rename: its own name,
+    lowercased, under wiki/. Each segment is slugged, so "Finances/Spending"
+    becomes wiki/finances/spending and "Reading Queue" becomes wiki/reading-queue."""
+    segments = [s.strip().lower().replace(" ", "-") for s in name.split("/") if s.strip()]
+    return "wiki/" + "/".join(segments)
+
+
+# Seed notes write_preset_extras writes into a preset's topic folders, as
+# (top folder, note name, Home link label). The Obsidian-style Home links these
+# in its navigation table; the wiki-style Home builds its links from this table,
+# so a vault in either layout links every note it ships.
+SEED_NOTES = {
+    "default": (
+        ("Goals", f"{YEAR} Goals", "🎯 Goals"),
+        ("Finances", "Income Streams", "💵 Income"),
+        ("Health", "Health Dashboard", "🏋️ Health"),
+        ("Mentions", "Mentions Log", "💬 Mentions"),
+        ("Content", "Content Calendar", "📅 Content"),
+    ),
+    "researcher": (
+        ("Reading Queue", "_Queue", "📚 Reading Queue"),
+    ),
+}
+
+
+def resolve_folder(name: str, style: str = "obsidian") -> str:
+    """Where a preset folder lives in the given layout. Obsidian style is the
+    preset's own name; wiki style is its WIKI_PATHS rename, or wiki/<name>."""
     if style == "obsidian":
         return name
-    return WIKI_PATHS.get(name)
+    return WIKI_PATHS.get(name) or _wiki_slug(name)
 
 
 def resolve_folders(folders: list[str], style: str = "obsidian") -> list[str]:
-    """A preset's folder list in the given layout: order kept, folders with no
-    home dropped, duplicates collapsed (Ideas and Knowledge are both wiki/concepts)."""
-    out: list[str] = []
+    """A preset's folder list in the given layout: order kept, duplicates
+    collapsed (Ideas and Knowledge are both wiki/concepts)."""
+    return [path for path, _ in resolve_folder_pairs(folders, style)]
+
+
+def resolve_folder_pairs(folders: list[str], style: str = "obsidian") -> list[tuple[str, str]]:
+    """resolve_folders, keeping each path's preset folder beside it so callers
+    that describe a folder (the _CLAUDE.md map) still know what it was named."""
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
     for f in folders:
         path = resolve_folder(f, style)
-        if path is not None and path not in out:
-            out.append(path)
+        if path not in seen:
+            seen.add(path)
+            out.append((path, f))
     return out
 
 
@@ -140,7 +177,7 @@ def _dataview_sources(text: str, style: str) -> str:
         return text
     return re.sub(
         r'FROM "([^"]+)"',
-        lambda m: f'FROM "{resolve_folder(m.group(1), style) or m.group(1)}"',
+        lambda m: f'FROM "{resolve_folder(m.group(1), style)}"',
         text,
     )
 
@@ -148,13 +185,10 @@ def _dataview_sources(text: str, style: str) -> str:
 def _writer(vault: Path, style: str):
     """write() for a template or seed note addressed by its Obsidian-style path
     ("Templates/Task.md", "Goals/2026 Goals.md"). The top folder is resolved for
-    the layout; a note whose folder has no home in it is skipped."""
+    the layout, so every preset's seed notes are written in either layout."""
     def put(rel: str, content: str) -> None:
         top, _, rest = rel.partition("/")
-        base = resolve_folder(top, style)
-        if base is None:
-            return
-        write(vault / base / rest, _dataview_sources(content, style))
+        write(vault / resolve_folder(top, style) / rest, _dataview_sources(content, style))
     return put
 
 
@@ -310,6 +344,10 @@ kanban-plugin: board
 
 
 def folder_map_table(folders: list) -> str:
+    """Rows for the _CLAUDE.md folder map. Takes either plain paths or the
+    (path, preset folder) pairs resolve_folder_pairs returns: a wiki-style
+    folder that WIKI_PATHS does not rename is described by what it was named,
+    since `wiki/sources/` alone says nothing about what belongs in it."""
     descriptions = {
         "Daily": "One note per day. Named `YYYY-MM-DD.md`",
         "Dev Logs": "Technical work logs - dated, project-tagged",
@@ -344,20 +382,21 @@ def folder_map_table(folders: list) -> str:
         "_trash": "Deleted notes (Obsidian default)",
     }
     rows = []
-    for f in folders:
+    for entry in folders:
+        f, origin = entry if isinstance(entry, tuple) else (entry, entry)
         if f in WIKI_DESCRIPTIONS:
             rows.append(f"| `{f}/` | {WIKI_DESCRIPTIONS[f]} |")
             continue
         # Use top-level segment for description lookup
-        key = f.split("/")[0]
+        key = origin.split("/")[0]
         if key == "Content":
-            sub = f.split("/", 1)[1] if "/" in f else ""
+            sub = origin.split("/", 1)[1] if "/" in origin else ""
             desc = f"Content drafts for {sub}" if sub else "Content calendar and post drafts"
         elif key == "Finances":
-            sub = f.split("/", 1)[1] if "/" in f else ""
+            sub = origin.split("/", 1)[1] if "/" in origin else ""
             desc = f"Finance notes ({sub})" if sub else "Finance notes"
         elif key == "Side Biz":
-            sub = f.split("/", 1)[1] if "/" in f else ""
+            sub = origin.split("/", 1)[1] if "/" in origin else ""
             desc = f"Side business ({sub})" if sub else "Side business"
         else:
             desc = descriptions.get(key, "-")
@@ -370,9 +409,13 @@ def claude_md_personal(name: str, preset_key: str, preset: dict, jobs: list, vau
     primary_job = jobs[0] if jobs else "Work"
     boards, people = resolve_folder("Boards", style), resolve_folder("People", style)
     tasks, dev_logs = resolve_folder("Tasks", style), resolve_folder("Dev Logs", style)
-    # Mentions/ and Finances/ have no home in the wiki layout, so a wiki-style
-    # manual must not route anything to them.
-    topic_folders = style == "obsidian"
+    # The manual routes work to a topic folder only when this vault has one.
+    # Obsidian style keeps its previous behaviour; a wiki-style vault gets the
+    # routes when the preset carries those folders, which it now creates.
+    created = {e[1] for e in (folders or []) if isinstance(e, tuple)}
+    topic_folders = style == "obsidian" or {"Mentions", "Finances/Spending"} <= created
+    mentions_folder = resolve_folder("Mentions", style)
+    finances_folder = resolve_folder("Finances", style)
     # The map is the agent's ground truth for what is where, so build it from the
     # folders bootstrap actually creates (which may extend the preset, e.g. the
     # Side Biz tree) - and list no file it does not write: the default preset
@@ -384,13 +427,13 @@ def claude_md_personal(name: str, preset_key: str, preset: dict, jobs: list, vau
             "- **Dashboard:** `Home.md`\n"
             f"- **Work Board:** `{boards}/{primary_job}.md`\n"
             f"- **Personal Board:** `{boards}/Personal.md`"
-            + ("\n- **Mentions Log:** `Mentions/Mentions Log.md`" if topic_folders else "")
+            + (f"\n- **Mentions Log:** `{mentions_folder}/Mentions Log.md`" if topic_folders else "")
         )
     else:
         board_lines = [f"- **{b.name} Board:** `{boards}/{b.name}.md`" for b in preset["boards"]]
         key_files = "- **Dashboard:** `Home.md`\n" + "\n".join(board_lines)
     mentions_rule = "- Mentions/recognition → Mentions Log + person's note + daily note\n" if topic_folders else ""
-    finances_rule = "- Anything in Finances/ with personal financial data\n" if topic_folders else ""
+    finances_rule = f"- Anything in {finances_folder}/ with personal financial data\n" if topic_folders else ""
     mentions_row = "\n| Mention/recognition | Mentions Log + person's note + daily note |" if topic_folders else ""
 
     return f"""# Claude Operating Manual - {name}'s Vault
@@ -593,15 +636,19 @@ def render_home(name: str, preset_key: str, preset: dict, jobs: list, mode: str,
     daily = resolve_folder("Daily", style)
 
     if style == "wiki":
-        # The default preset's navigation table links Goals/, Finances/, Health/
-        # and Mentions/ seed notes that a wiki-style vault does not create, so
-        # every wiki-style Home links only its boards and the folders it has.
+        # Boards, then every folder this preset has, then the seed notes the
+        # preset writes: a wiki-style vault creates those notes too, and a note
+        # nothing links is an orphan in its own health check.
         board_names = (jobs + ["Personal"]) if preset_key == "default" else [b.name for b in preset["boards"]]
         board_links = " · ".join(f"[[boards/{n}\\|📋 {n}]]" for n in board_names)
-        folder_links = " · ".join(f"[[{p}/\\|📁 {p.split('/')[-1].title()}]]"
+        folder_links = " · ".join(f"[[{p}/\\|📁 {p.split('/')[-1].replace('-', ' ').title()}]]"
                                   for p in resolve_folders(preset["folders"], style)
                                   if p not in ("boards", "templates", "_trash"))
-        nav = f"{board_links}\n\n{folder_links}"
+        seed_links = " · ".join(
+            f"[[{resolve_folder(folder, style)}/{note}\\|{label}]]"
+            for folder, note, label in SEED_NOTES.get(preset_key, ())
+        )
+        nav = f"{board_links}\n\n{folder_links}" + (f"\n\n{seed_links}" if seed_links else "")
     elif preset_key == "default":
         primary_job = jobs[0] if jobs else "Work"
         nav = (
@@ -1330,7 +1377,10 @@ def bootstrap(vault: Path, name: str, preset_key: str, mode: str, subject: str,
     folders = list(preset["folders"])
     if preset_key == "default" and include_sidebiz:
         folders += ["Side Biz/Deals/Location1", "Side Biz/Deals/Location2"]
-    folders = resolve_folders(folders, style)
+    # Pairs, not paths: the _CLAUDE.md map describes a wiki-style folder by the
+    # preset folder it came from.
+    folder_pairs = resolve_folder_pairs(folders, style)
+    folders = [path for path, _ in folder_pairs]
 
     for f in folders:
         (vault / f).mkdir(parents=True, exist_ok=True)
@@ -1339,10 +1389,10 @@ def bootstrap(vault: Path, name: str, preset_key: str, mode: str, subject: str,
     # ── _CLAUDE.md ────────────────────────────────────────────────────────────
     if mode == "assistant":
         write(vault / "_CLAUDE.md",
-              claude_md_assistant(name, subject, preset_key, preset, vault, folders=folders, style=style))
+              claude_md_assistant(name, subject, preset_key, preset, vault, folders=folder_pairs, style=style))
     else:
         write(vault / "_CLAUDE.md",
-              claude_md_personal(name, preset_key, preset, jobs, vault, folders=folders, style=style))
+              claude_md_personal(name, preset_key, preset, jobs, vault, folders=folder_pairs, style=style))
 
     # ── .claude/CLAUDE.md: native import of the manual ─────────────────────────
     # Claude Code loads a CLAUDE.md found from the working directory and follows
@@ -1436,7 +1486,9 @@ def main():
     parser.add_argument("--no-sidebiz", action="store_true", help="Omit side business module (default preset only)")
     parser.add_argument("--style", default="obsidian", choices=list(STYLES),
                         help="Folder layout: obsidian (Daily/, People/, ...) or wiki "
-                             "(wiki/daily/, wiki/entities/, ...) (default: obsidian)")
+                             "(wiki/daily/, wiki/entities/, ...). A preset folder the wiki "
+                             "layout does not rename keeps its own name under wiki/, e.g. "
+                             "Sources/ -> wiki/sources/ (default: obsidian)")
     parser.add_argument("--force", action="store_true",
                         help="Overwrite existing files (default: keep anything already in the vault)")
     args = parser.parse_args()

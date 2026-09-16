@@ -4,8 +4,10 @@ The README and references/vault-schema.md described a wiki-style layout that no
 setup path could create: every preset made Daily/, People/ and the rest, and the
 only write_bases call hardcoded style="obsidian". These pin the flag's contract:
 obsidian stays the default and builds what it built before; wiki builds the wiki
-layout and nothing from the Obsidian-style tree; either vault passes its own
-health check; and the wiki paths cannot drift from references/folder-map.md.
+layout and nothing from the Obsidian-style tree; a preset keeps its folders in
+either layout, since one the wiki layout does not rename keeps its own name under
+wiki/; either vault passes its own health check; and the wiki paths cannot drift
+from references/folder-map.md.
 """
 
 from __future__ import annotations
@@ -98,7 +100,8 @@ INSPECTION_CASES = [
             strict=True,
             reason="Pre-existing, not introduced by --style: the researcher preset seeds "
                    "Reading Queue/_Queue.md with no incoming link, so vault_health reports "
-                   "an orphan. A wiki-style vault does not create that folder.",
+                   "an orphan. A wiki-style vault creates that folder too, but its Home links "
+                   "the preset's seed notes, so only the Obsidian-style vault has the orphan.",
         ) if (preset, style) == ("researcher", "obsidian") else (),
     )
     for preset in sorted(bv.PRESETS)
@@ -143,6 +146,31 @@ def test_builder_and_creator_create_the_people_folder(tmp_path, preset, style):
     vault = tmp_path / "vault"
     assert _boot(vault, "--preset", preset, "--style", style).returncode == 0
     assert _exists_exact(vault, bv.resolve_folder("People", style))
+
+
+@pytest.mark.parametrize("preset", sorted(bv.PRESETS))
+def test_no_preset_folder_is_dropped_by_the_wiki_layout(tmp_path, preset):
+    """A preset is a promise about the shape of a vault. Before the fallback,
+    a folder with no WIKI_PATHS row was silently left out, so --preset
+    researcher --style wiki built what no preset at all would have built."""
+    vault = tmp_path / "vault"
+    assert _boot(vault, "--preset", preset, "--style", "wiki").returncode == 0
+    missing = [f for f in bv.PRESETS[preset]["folders"]
+               if not _exists_exact(vault, bv.resolve_folder(f, "wiki"))]
+    assert missing == [], f"preset folders with no home in the wiki-style vault: {missing}"
+
+
+@pytest.mark.parametrize(("name", "expected"), [
+    ("Sources", "wiki/sources"),            # no WIKI_PATHS row: keeps its name
+    ("Reading Queue", "wiki/reading-queue"),  # spaces hyphenated
+    ("Finances/Spending", "wiki/finances/spending"),  # every segment slugged
+    ("Content/LinkedIn", "wiki/content/linkedin"),
+    ("People", "wiki/entities"),            # a row still wins over the fallback
+    ("Boards", "boards"),
+])
+def test_unmapped_folders_keep_their_name_under_wiki(name, expected):
+    assert bv.resolve_folder(name, "wiki") == expected
+    assert bv.resolve_folder(name, "obsidian") == name
 
 
 def _folder_map_rows() -> dict[str, set[str]]:
