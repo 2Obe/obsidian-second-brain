@@ -231,20 +231,23 @@ def test_overlong_wikilink_is_a_wanted_note_not_a_crash(tmp_path):
 
 def test_a_path_qualified_link_does_not_cover_a_same_named_note_elsewhere(tmp_path):
     """Every link used to register its bare filename as well as its path, and
-    notes were only ever matched by stem. So linking the daily note hid that
-    day's log: `wiki/daily/2026-01-05.md` and `Logs/2026-01-05.md` share a stem,
-    and one link covered both (#290). The plugin's own layout collides this way
-    on any day that has both files."""
+    notes were only ever matched by stem. So one link covered every note sharing
+    a stem anywhere in the vault (#290).
+
+    Written against two dated notes in ordinary folders. The original report used
+    `wiki/daily/` and `Logs/`, which is where the collision actually bites in a
+    real vault, but both of those became exempt from the orphan check in #292,
+    so they can no longer show it."""
     vault = tmp_path / "vault"
-    (vault / "wiki" / "daily").mkdir(parents=True)
-    (vault / "Logs").mkdir(parents=True)
-    (vault / "Home.md").write_text("today: [[wiki/daily/2026-01-05]]\n", encoding="utf-8")
-    (vault / "wiki" / "daily" / "2026-01-05.md").write_text("back to [[Home]]\n", encoding="utf-8")
-    (vault / "Logs" / "2026-01-05.md").write_text("nothing links here\n", encoding="utf-8")
+    (vault / "Meetings").mkdir(parents=True)
+    (vault / "Archive").mkdir(parents=True)
+    (vault / "Home.md").write_text("see [[Meetings/2026-01-05]]\n", encoding="utf-8")
+    (vault / "Meetings" / "2026-01-05.md").write_text("back to [[Home]]\n", encoding="utf-8")
+    (vault / "Archive" / "2026-01-05.md").write_text("nothing links here\n", encoding="utf-8")
 
     orphans = {i["files"][0] for i in _issues(_health(vault), "orphan")}
-    assert "Logs/2026-01-05.md" in orphans, "the unlinked log must still be reported"
-    assert "wiki/daily/2026-01-05.md" not in orphans, "the linked daily note must not be"
+    assert "Archive/2026-01-05.md" in orphans, "the unlinked note must still be reported"
+    assert "Meetings/2026-01-05.md" not in orphans, "the linked note must not be"
 
 
 def test_one_linked_readme_does_not_cover_the_others(tmp_path):
@@ -324,3 +327,85 @@ def test_a_dot_prefixed_note_is_not_scanned(tmp_path):
     payload = _health(vault)
     assert payload["total_notes"] == 1
     assert not [i for i in payload["issues"] if ".hidden" in str(i.get("files"))]
+
+
+# ── #292: the dated-folder exemption knew only one of the two layouts ────────
+
+def test_wiki_style_daily_notes_are_exempt_like_obsidian_style_ones(tmp_path):
+    """The exemption read the TOP folder against Obsidian-style names, so a
+    wiki-style daily note at `wiki/daily/YYYY-MM-DD.md` (top folder `wiki`) rang
+    every day while `Daily/YYYY-MM-DD.md` next door did not. The same note was
+    noise or not depending only on which documented layout its owner picked."""
+    vault = tmp_path / "vault"
+    (vault / "Daily").mkdir(parents=True)
+    (vault / "wiki" / "daily").mkdir(parents=True)
+    (vault / "Home.md").write_text("dashboard\n", encoding="utf-8")
+    (vault / "Daily" / "2026-01-06.md").write_text("obsidian-style\n", encoding="utf-8")
+    (vault / "wiki" / "daily" / "2026-01-07.md").write_text("wiki-style\n", encoding="utf-8")
+
+    orphans = {i["files"][0] for i in _issues(_health(vault), "orphan")}
+    assert "wiki/daily/2026-01-07.md" not in orphans
+    assert "Daily/2026-01-06.md" not in orphans
+
+
+def test_the_operations_log_is_exempt_in_both_layouts(tmp_path):
+    """`/obsidian-init` writes `Logs/YYYY-MM-DD.md` and nothing is meant to link
+    it, but `Logs` was in neither layout's list, so it rang once a day forever."""
+    vault = tmp_path / "vault"
+    (vault / "Logs").mkdir(parents=True)
+    (vault / "wiki" / "logs").mkdir(parents=True)
+    (vault / "Home.md").write_text("dashboard\n", encoding="utf-8")
+    (vault / "Logs" / "2026-01-08.md").write_text("ops log\n", encoding="utf-8")
+    (vault / "wiki" / "logs" / "2026-01-09.md").write_text("ops log\n", encoding="utf-8")
+
+    orphans = {i["files"][0] for i in _issues(_health(vault), "orphan")}
+    assert "Logs/2026-01-08.md" not in orphans
+    assert "wiki/logs/2026-01-09.md" not in orphans
+
+
+def test_a_slugged_exempt_folder_is_recognised(tmp_path):
+    """Bootstrap writes a preset folder with no explicit mapping as a slug under
+    `wiki/` (#287), so `Life Chapters/` becomes `wiki/life-chapters/`. The
+    exemption reads the slug as its spaced form rather than missing it."""
+    vault = tmp_path / "vault"
+    (vault / "wiki" / "life-chapters").mkdir(parents=True)
+    (vault / "Home.md").write_text("dashboard\n", encoding="utf-8")
+    (vault / "wiki" / "life-chapters" / "2019.md").write_text("a chapter\n", encoding="utf-8")
+
+    orphans = {i["files"][0] for i in _issues(_health(vault), "orphan")}
+    assert "wiki/life-chapters/2019.md" not in orphans
+
+
+def test_the_exemption_is_casefolded(tmp_path):
+    """The old set was spelled with capitals and compared without folding, so a
+    vault whose folder is `daily/` got the noise a vault with `Daily/` did not."""
+    vault = tmp_path / "vault"
+    (vault / "daily").mkdir(parents=True)
+    (vault / "Home.md").write_text("dashboard\n", encoding="utf-8")
+    (vault / "daily" / "2026-01-10.md").write_text("lowercase folder\n", encoding="utf-8")
+
+    orphans = {i["files"][0] for i in _issues(_health(vault), "orphan")}
+    assert "daily/2026-01-10.md" not in orphans
+
+
+def test_a_real_wiki_note_is_still_orphan_checked(tmp_path):
+    """The exemption must not swallow the whole `wiki/` tree: only the dated and
+    machine-written folders under it are exempt, not projects or concepts."""
+    vault = tmp_path / "vault"
+    (vault / "wiki" / "projects").mkdir(parents=True)
+    (vault / "Home.md").write_text("dashboard\n", encoding="utf-8")
+    (vault / "wiki" / "projects" / "Tide.md").write_text("nothing links here\n", encoding="utf-8")
+
+    orphans = {i["files"][0] for i in _issues(_health(vault), "orphan")}
+    assert "wiki/projects/Tide.md" in orphans
+
+
+def test_a_root_note_named_like_an_exempt_folder_is_still_checked(tmp_path):
+    """`Logs.md` at the vault root is a note, not the operations-log folder."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "Home.md").write_text("dashboard\n", encoding="utf-8")
+    (vault / "Logs.md").write_text("nothing links here\n", encoding="utf-8")
+
+    orphans = {i["files"][0] for i in _issues(_health(vault), "orphan")}
+    assert "Logs.md" in orphans
