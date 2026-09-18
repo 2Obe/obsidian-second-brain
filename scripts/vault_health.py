@@ -600,6 +600,39 @@ def check_taxonomy(notes: dict, taxonomy: dict) -> list:
     return issues
 
 
+# Folders whose notes are a dated series or machine-written: nothing is expected
+# to link them, so an orphan finding here recurs every day forever in a vault
+# behaving exactly as documented.
+_ORPHAN_EXEMPT_FOLDERS = frozenset({
+    "daily", "dev logs", "logs", "boards", "templates", "reviews",
+    "life chapters", "private", "journal", "faith", "partner", "family",
+})
+
+
+def _orphan_exempt_folder(rel: str) -> bool:
+    """True when this note lives in a folder the orphan check should skip.
+
+    The old test read the top folder against a set of Obsidian-style names,
+    spelled with capitals. It therefore knew one of the two documented layouts
+    (#292): wiki-style daily notes sit at `wiki/daily/YYYY-MM-DD.md`, whose top
+    folder is `wiki`, so every one of them rang, while `Daily/YYYY-MM-DD.md` in
+    a vault next door did not. The same note was noise or not depending only on
+    which documented layout its owner picked. `Logs/`, the operations log
+    `/obsidian-init` writes and nothing is meant to link, was in neither list.
+
+    Wiki-style nests one level deeper under `wiki/`, per
+    `references/folder-map.md`, so the folder that decides this is the second
+    component there and the first everywhere else. Matching is casefolded, and
+    a slugged name (`wiki/life-chapters/`, which bootstrap writes for a preset
+    folder with no explicit mapping) reads as its spaced form.
+    """
+    parts = rel.lower().split("/")
+    if len(parts) < 2:
+        return False  # a note at the vault root is never exempt
+    head = parts[1] if parts[0] == "wiki" and len(parts) > 2 else parts[0]
+    return head.replace("-", " ").replace("_", " ") in _ORPHAN_EXEMPT_FOLDERS
+
+
 def check_orphans(notes: dict) -> list:
     # key -> set of source notes that link to it. Tracking the SOURCE matters:
     # a note's own links must not count as incoming (a self-link is the note
@@ -639,12 +672,9 @@ def check_orphans(notes: dict) -> list:
         )
 
     issues = []
-    skip_folders = {"Daily", "Dev Logs", "Boards", "Templates", "Life Chapters",
-                    "Private", "Journal", "Faith", "Reviews", "Partner", "Family"}
 
     for rel, note in notes.items():
-        top_folder = rel.split("/")[0] if "/" in rel else ""
-        if top_folder in skip_folders:
+        if _orphan_exempt_folder(rel):
             continue
         if rel in ("Home.md", "_CLAUDE.md"):
             continue
