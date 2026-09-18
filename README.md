@@ -545,6 +545,12 @@ uv run python scripts/bootstrap_vault.py --path ~/my-vault --name "Your Name" --
 
 No preset? You get a general-purpose vault that works for everyone.
 
+Every preset builds the Obsidian-style layout (`Daily/`, `People/`, `Projects/`, ...). Add `--style wiki` for the wiki-style layout described under [Vault Architecture](#vault-architecture):
+
+```bash
+uv run python scripts/bootstrap_vault.py --path ~/my-vault --name "Your Name" --preset builder --style wiki
+```
+
 ---
 
 ## Background Agent & Scheduled Agents
@@ -574,7 +580,9 @@ PostCompact -> obsidian-bg-agent.sh -> claude -p (headless) -> vault updated
 
 ## Vault Architecture
 
-### Wiki-style (default) -- LLM-first
+Two layouts are supported. `scripts/bootstrap_vault.py` builds the Obsidian-style layout by default: `Daily/`, `People/`, `Projects/` and the preset's topic folders such as `Goals/` and `Mentions/`, as laid out in [references/vault-schema.md](references/vault-schema.md). Pass `--style wiki` for the wiki-style layout below. A preset folder the wiki layout renames moves to that name (`People/` to `wiki/entities/`, `Ideas/` and `Knowledge/` to `wiki/concepts/`); one it does not rename keeps its own name under `wiki/` (`Goals/` to `wiki/goals/`, `Sources/` to `wiki/sources/`), so a preset builds the same vault in either layout.
+
+### Wiki-style -- LLM-first
 
 Claude is the reader and writer. The vault is a database.
 
