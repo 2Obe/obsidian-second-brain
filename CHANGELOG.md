@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **`/obsidian-find --semantic-first` adds a bounded vector-first retrieval mode without changing existing search calls.** `vault_ops.search(..., semantic="semantic-first")` embeds the query once, ranks the existing semantic index, then reads only the selected candidate files for snippets; it never performs the default full-vault lexical scan or silently falls back to one. `None`/`True`/`False` retain their existing default-hybrid/forced-hybrid/pure-lexical meanings, with string aliases `default`/`hybrid`/`lexical`. The MCP `obsidian_search` tool exposes the same mode, and the retrieval eval can measure it independently from pure semantic and hybrid search. Missing indexes and embedding failures are explicit errors so the bounded-latency contract stays honest.
+
 ### Fixed
 
 - **`/obsidian-health` orphan-checked the daily notes and the operations log in a wiki-style vault, one finding per day, forever (#292, reported by @JamBeatss).** `check_orphans()` exempted dated-series folders through a hardcoded list of Obsidian-style names, compared against the note's top folder and spelled with capitals. It therefore knew one of the two documented layouts. Wiki-style daily notes live at `wiki/daily/YYYY-MM-DD.md`, whose top folder is `wiki`, so every one of them rang, while `Daily/YYYY-MM-DD.md` in a vault next door did not: the same note was noise or not depending only on which documented layout its owner picked. `Logs/`, the operations log `/obsidian-init` writes and nothing is meant to link, was in neither layout's list. The exemption now reads the folder that decides it, which is the second path component under `wiki/` and the first everywhere else, casefolds it, and reads a slugged name (`wiki/life-chapters/`, which bootstrap writes for a preset folder with no explicit mapping since #287) as its spaced form. Six tests in `tests/test_vault_health_precision.py`, four of which fail on the previous `main`.

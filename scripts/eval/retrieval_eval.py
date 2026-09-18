@@ -245,13 +245,14 @@ def _split_external_cmd(cmd: str) -> list[str]:
 def _searcher(mode: str):
     """Return a (label, fn(query)->results) for the chosen retrieval mode.
 
-    Four modes, four TRUE labels (stress-test fix 10/24 - before this, "lexical"
+    Five built-in modes, five TRUE labels (stress-test fix 10/24 - before this, "lexical"
     silently measured the fused blend and "hybrid" fused an already-fused input,
     double-counting semantic and flipping the semantic-vs-hybrid conclusion):
 
       lexical   pure word-match, fusion forced off
       default   exactly what the shipped MCP serves (env-driven fusion)
       semantic  local embeddings only
+      semantic-first  one vector ranking plus candidate-only reads
       hybrid    single RRF of pure lexical + semantic
     """
     if mode == "lexical":
@@ -260,6 +261,9 @@ def _searcher(mode: str):
     if mode == "default":
         return "shipped default: vault_ops.search (lexical + semantic RRF when available)", \
             lambda q: vault_ops.search(q, limit=SEARCH_LIMIT)
+    if mode == "semantic-first":
+        return "semantic-first: one vector ranking + candidate-only reads", \
+            lambda q: vault_ops.search(q, limit=SEARCH_LIMIT, semantic="semantic-first")
     if mode == "external":
         # Benchmark ANY external retrieval engine on the same cases: point
         # RETRIEVAL_EVAL_EXTERNAL_CMD at a command that takes the query as its
@@ -344,10 +348,8 @@ def evaluate(cases_path: Path, as_json: bool, mode: str = "lexical") -> int:
         try:
             results = search_fn(c["q"])
         except Exception as e:
-            # One bad case must not discard every case already scored. In
-            # semantic/hybrid mode embed() uses the full (1,3,8,15) retry ladder
-            # at 120s per attempt, so a slow backend can burn ~10 minutes here
-            # and then take the entire run down with it. Count it as a miss.
+            # One failed query must not discard every case already scored.
+            # Count it as a miss and continue with the remaining cases.
             print(f"  case failed, counted as a miss: {c['q'][:60]!r}: {e}", file=sys.stderr)
             results = []
         rank = _rank_of_gold(results, c.get("gold", []))
@@ -419,12 +421,14 @@ def main() -> int:
     ap.add_argument("--cases", type=Path, default=DEFAULT_CASES,
                     help=f"Cases JSONL path (default: {DEFAULT_CASES})")
     ap.add_argument("--json", action="store_true", help="Emit JSON instead of a text report")
-    ap.add_argument("--mode", choices=("lexical", "default", "semantic", "hybrid", "external"),
+    ap.add_argument("--mode", choices=("lexical", "default", "semantic", "semantic-first",
+                                       "hybrid", "external"),
                     default="lexical",
                     help="Retrieval to score: lexical (pure word-match, default), "
                          "default (exactly what the shipped MCP serves), semantic "
-                         "(local embeddings), or hybrid (pure lexical + semantic, "
-                         "single RRF). semantic/hybrid need Ollama.")
+                          "(local embeddings), semantic-first (one vector ranking + "
+                          "candidate-only reads), or hybrid (pure lexical + semantic, "
+                          "single RRF). Semantic modes need an embedding backend.")
     ap.add_argument("--force", action="store_true",
                     help="Allow --generate to overwrite an existing cases file")
     args = ap.parse_args()
