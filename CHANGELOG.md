@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - **`/obsidian-find --semantic-first` adds a bounded vector-first retrieval mode without changing existing search calls.** `vault_ops.search(..., semantic="semantic-first")` embeds the query once, ranks the existing semantic index, then reads only the selected candidate files for snippets; it never performs the default full-vault lexical scan or silently falls back to one. `None`/`True`/`False` retain their existing default-hybrid/forced-hybrid/pure-lexical meanings, with string aliases `default`/`hybrid`/`lexical`. The MCP `obsidian_search` tool exposes the same mode, and the retrieval eval can measure it independently from pure semantic and hybrid search. Missing indexes and embedding failures are explicit errors so the bounded-latency contract stays honest.
+- **German (`de`) trigger phrases for all commands.** Each command now recognizes natural German requests alongside the existing English, Spanish, Portuguese, and Simplified Chinese phrases.
 
 ### Fixed
 
