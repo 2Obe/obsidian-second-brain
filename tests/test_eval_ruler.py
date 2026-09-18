@@ -92,6 +92,20 @@ def test_default_mode_measures_shipped_behavior(vault, monkeypatch):
     assert "shipped default" in label
 
 
+def test_semantic_first_mode_measures_the_new_strategy(vault, monkeypatch):
+    recorded = {}
+
+    def fake_search(q, *, limit, semantic=None):
+        recorded["semantic"] = semantic
+        return []
+
+    monkeypatch.setattr(rev.vault_ops, "search", fake_search)
+    label, fn = rev._searcher("semantic-first")
+    fn("anything")
+    assert recorded["semantic"] == "semantic-first"
+    assert "candidate-only" in label
+
+
 def test_hybrid_feeds_a_pure_lexical_arm(vault, monkeypatch):
     recorded = {}
 

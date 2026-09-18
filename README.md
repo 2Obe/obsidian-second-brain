@@ -293,7 +293,7 @@ Free transcript via youtube-transcript-api. Optional metadata + top comments via
 | `/obsidian-person` | Creates or updates a person note |
 | `/obsidian-capture` | Zero-friction idea capture |
 | `/obsidian-catchup` | Process captures dumped from the Telegram bot (voice/text/image/PDF/link) into the vault |
-| `/obsidian-find` | Smart search with context |
+| `/obsidian-find` | Smart search with context; `--semantic-first` performs one vector ranking and reads only its candidates |
 | `/obsidian-recap` | Summary of a day, week, or month |
 | `/obsidian-review` | Structured weekly or monthly review |
 | `/obsidian-board` | Kanban board view and updates |
@@ -823,6 +823,8 @@ Without keys, the 38 non-research commands work fully, and `/research` + `/resea
 ### Semantic search (optional, off by default)
 
 Search (`/obsidian-find` and the MCP connector) works out of the box as fast keyword search - **no setup, no model, nothing to install.** You can optionally add a meaning-based layer that finds notes even when your query shares no words with them. It is opt-in by setup and, when present, leads the ranking with keyword search as tiebreak and freshness signals on top (measured on a ~2,350-note vault: keyword recall@10 1.0, paraphrased-question recall@10 77%, and non-English queries went from 13% to 63% recall@5, a 5x gain, with the multilingual default model - full reference in scripts/eval/BASELINE.md). If the model is ever unreachable, search silently falls back to keyword - it never breaks or hangs.
+
+For a bounded vector-first lookup, run `/obsidian-find --semantic-first <query>` or call `obsidian_search(..., semantic="semantic-first")`. This mode embeds the query once, ranks the existing index, and reads only the returned candidate files; it does not scan the whole vault lexically. Because that latency contract forbids a hidden broad fallback, a missing index or unavailable embedding backend is reported as an error. Run `/obsidian-reindex` to create or refresh the index, or use normal `/obsidian-find` for the fail-soft default search.
 
 Two ways to provide the embedding model:
 

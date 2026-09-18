@@ -8,16 +8,18 @@ triggers_pt: ["encontre no vault", "pesquise minhas notas", "onde está", "o que
 triggers_zh: ["在知识库里找一下", "搜索我的笔记", "我之前在哪篇笔记里写过", "我写过关于这个吗"]
 ---
 
-Use the obsidian-second-brain skill. Execute `/obsidian-find $ARGUMENTS`:
+Use the obsidian-second-brain skill. Execute `/obsidian-find [--semantic-first] $ARGUMENTS`:
 
-The argument is the search query.
+The argument is the search query. `--semantic-first` is an optional bounded mode
+that requires an existing semantic index and reachable embedding backend.
 
 1. Read `_CLAUDE.md` first if it exists in the vault root
-2. Search the vault for the query using the ranked keyword search where it is available: the `obsidian_search` MCP tool, or `vault_ops.search` directly (`integrations/obsidian-mcp-server/`). It applies stopword filtering and length-normalized ranking, so a short note with the term in its title outranks a long note that merely repeats it. In Claude Code (where no search tool is bound), grep the vault and read the top matches directly, applying the same judgement: ignore filler words, and do not let long `raw/` transcripts or `log.md` outrank a canonical `wiki/` note.
-3. Also try variations if results are sparse (synonyms, related terms)
-4. Return results with context: note title, folder, a relevant excerpt, and what type of note it is
-5. If results are ambiguous, group them by type (people, projects, tasks, etc.)
-6. Offer to open, update, or link any of the found notes
+2. If `--semantic-first` is present, remove the flag from the query and call `obsidian_search(query, semantic="semantic-first")` when that tool is available. Otherwise run `uv run --directory "SKILL_ROOT" python scripts/eval/semantic_search.py --path "VAULT_PATH" --query "QUERY" --limit 6`, then read only the paths it returns. This performs exactly one vector ranking and reads only the returned candidate files. Do not grep the whole vault, retry with synonyms, or silently fall back to broad lexical search. If the index or embedding backend is unavailable, report that clearly and suggest `/obsidian-reindex` or a normal `/obsidian-find` call.
+3. Otherwise, search the vault using the ranked default search where it is available: the `obsidian_search` MCP tool, or `vault_ops.search` directly (`integrations/obsidian-mcp-server/`). It applies stopword filtering and length-normalized ranking, so a short note with the term in its title outranks a long note that merely repeats it. In Claude Code (where no search tool is bound), grep the vault and read the top matches directly, applying the same judgement: ignore filler words, and do not let long `raw/` transcripts or `log.md` outrank a canonical `wiki/` note.
+4. In the normal mode only, also try variations if results are sparse (synonyms, related terms)
+5. Return results with context: note title, folder, a relevant excerpt, and what type of note it is
+6. If results are ambiguous, group them by type (people, projects, tasks, etc.)
+7. Offer to open, update, or link any of the found notes
 
 Do not just return filenames - return enough context for the user to act on the results.
 
