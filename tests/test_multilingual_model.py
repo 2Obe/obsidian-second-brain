@@ -70,8 +70,8 @@ def test_fuse_embeds_query_with_index_model(tmp_path, monkeypatch):
 def test_eval_semantic_search_uses_index_model(monkeypatch):
     seen = {}
 
-    def spy(text, retries=None, model=None, timeout=120):
-        seen.update(model=model, retries=retries, timeout=timeout)
+    def spy(text, retries=None, model=None):
+        seen["model"] = model
         return [1.0, 0.0]
 
     monkeypatch.setattr(ss, "embed", spy)
@@ -79,5 +79,3 @@ def test_eval_semantic_search_uses_index_model(monkeypatch):
              "notes": {"a.md": {"title": "a", "vecs": [[1.0, 0.0]]}}}
     ss.semantic_search("query words", index, limit=3)
     assert seen["model"] == "index-model-y"
-    assert seen["retries"] == 0
-    assert seen["timeout"] == 10

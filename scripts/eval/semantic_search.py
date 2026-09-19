@@ -52,10 +52,16 @@ EMBED_KEY = os.environ.get("OBSIDIAN_EMBED_KEY", "")
 # Parsed in scripts/vault_scan.py, which vault_health's coverage check shares, so
 # a note excluded here is never reported as missing from the index (#273).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from vault_scan import BASE_EXCLUDE_DIRS, embed_exclude_prefixes, is_embed_excluded  # noqa: E402
+from vault_scan import embed_exclude_prefixes, is_embed_excluded  # noqa: E402
 
 EXCLUDE_PREFIXES = embed_exclude_prefixes()
-SKIP_DIRS = BASE_EXCLUDE_DIRS
+# Single source of truth: the MCP server owns the skip set, so the semantic
+# index and the lexical scan can never drift into different universes
+# (stress-test fix 10/24).
+import sys as _sys
+
+_sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "integrations" / "obsidian-mcp-server"))
+from vault_ops import _SKIP_DIRS as SKIP_DIRS  # noqa: E402
 
 INDEX_FILE = ".obsidian-semantic-index.json"  # written at vault root
 # Embedding models have a token limit (typically ~512 tokens). Long notes
@@ -137,10 +143,7 @@ def _parse_embedding(data: dict) -> list[float] | None:
     return None
 
 
-def embed(
-    text: str, retries: int | None = None, model: str | None = None,
-    timeout: float = 120,
-) -> list[float]:
+def embed(text: str, retries: int | None = None, model: str | None = None) -> list[float]:
     """Return the embedding vector for one text via the configured backend.
 
     Retries transient errors (HTTP 5xx, connection resets): a local model on a
@@ -156,7 +159,7 @@ def embed(
     for attempt in range(len(waits) + 1):
         try:
             req = urllib.request.Request(url, data=body, headers=headers)
-            with urllib.request.urlopen(req, timeout=timeout) as r:
+            with urllib.request.urlopen(req, timeout=120) as r:
                 vec = _parse_embedding(json.loads(r.read()))
             if vec:
                 return vec
@@ -414,7 +417,7 @@ def load_index(vault: Path) -> dict:
 def semantic_search(query: str, index: dict, limit: int = 10) -> list[dict]:
     """Rank notes by meaning-distance from the query."""
     # The query must live in the same vector space as the index (fix 16/24).
-    qvec = embed(query, retries=0, model=index.get("model"), timeout=10)
+    qvec = embed(query, model=index.get("model"))
 
     def _score(n: dict) -> float:
         vecs = n.get("vecs") or ([n["vec"]] if n.get("vec") else [])
@@ -471,7 +474,7 @@ def main(argv: list[str]) -> int:
     if not vault.is_dir():
         print(f"vault path does not exist: {vault}", file=sys.stderr)
         return 2
-    if args.build and not ollama_available():
+    if not ollama_available():
         print(
             f"Local model runtime not found at {OLLAMA_URL}.\n"
             f"Install Ollama (https://ollama.com), open it, then: ollama pull {EMBED_MODEL}",

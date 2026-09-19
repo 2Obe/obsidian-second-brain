@@ -53,17 +53,13 @@ mcp = FastMCP("obsidian-second-brain")
 
 
 @mcp.tool()
-def obsidian_search(query: str, limit: int = 6, semantic: str = "default") -> str:
+def obsidian_search(query: str, limit: int = 6) -> str:
     """Search the Obsidian vault for relevant notes.
 
     Returns ranked matches with a snippet and the vault-relative path of each
     note (pass that path to obsidian_read_note to read the whole note).
-    `semantic` may be `default`, `lexical`, `hybrid`, or `semantic-first`.
-    Semantic-first vector-ranks once and reads only the returned candidates; it
-    fails clearly when the index/backend is unavailable instead of scanning the
-    whole vault as a fallback.
     """
-    return json.dumps({"results": vault_ops.search(query, limit=limit, semantic=semantic)})
+    return json.dumps({"results": vault_ops.search(query, limit=limit)})
 
 
 @mcp.tool()

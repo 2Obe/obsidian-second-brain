@@ -526,63 +526,6 @@ def _warn_if_index_stale(vault: Path, scanned: List[str], notes: Dict[str, Any])
     )
 
 
-def _semantic_rank(query: str, index: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Rank indexed notes by their best semantic chunk; raise when unavailable."""
-    qvec = _embed_query(query, model=index.get("model") or _EMBED_MODEL)
-    qunit = _unit(qvec) if qvec else None
-    if not qunit:
-        raise RuntimeError("the embedding backend returned no query vector")
-
-    def _note_score(n: Dict[str, Any]) -> float:
-        units = n.get("_unit") or []
-        return max((_dot(qunit, v) for v in units), default=0.0)
-
-    ranked = [
-        {"path": rel, "title": n.get("title", rel), "score": _note_score(n)}
-        for rel, n in (index.get("notes") or {}).items() if n.get("_unit")
-    ]
-    ranked.sort(key=lambda r: r["score"], reverse=True)
-    return ranked
-
-
-def _semantic_first(
-    query: str, vault: Path, limit: int, terms: List[str], current_intent: bool,
-) -> List[Dict[str, Any]]:
-    """Vector-rank once, then read only the ranked candidate files.
-
-    Unlike the default hybrid path this mode never scans the vault lexically and
-    never falls back to doing so: callers choose it for a bounded search.
-    """
-    index_path = vault / _SEMANTIC_INDEX_FILE
-    if not index_path.exists():
-        raise RuntimeError(
-            "semantic-first search requires a semantic index; run /obsidian-reindex first"
-        )
-    try:
-        index = _load_index_cached(index_path)
-        if not (index.get("notes") or {}):
-            raise RuntimeError("the semantic index contains no notes")
-        ranked = _semantic_rank(query, index)
-    except Exception as exc:
-        raise RuntimeError(f"semantic-first search is unavailable: {exc}") from exc
-
-    results: List[Dict[str, Any]] = []
-    for candidate in ranked:
-        rel = candidate["path"]
-        target = _resolve_in_vault(vault, rel)
-        text = _read_safe(target, limit=_MAX_FILE_BYTES) if target else None
-        if text is None:
-            continue
-        results.append({
-            "path": rel,
-            "title": candidate["title"],
-            "snippet": _snippet(text, terms),
-        })
-        if len(results) == limit:
-            break
-    return _freshness_rerank(results, vault, current_intent)
-
-
 def _semantic_fuse(
     query: str, lexical: List[Dict[str, Any]], vault: Path, limit: int,
     enabled: Optional[bool] = None, scanned: Optional[List[str]] = None,
@@ -601,7 +544,32 @@ def _semantic_fuse(
         if not notes:
             return None
         _warn_if_index_stale(vault, scanned or [], notes)
-        sem = _semantic_rank(query, index)[:_FUSE_DEPTH]
+        # The query MUST be embedded with the model the index was built with -
+        # vectors from different models live in different spaces (fix 16/24).
+        qvec = _embed_query(query, model=index.get("model") or _EMBED_MODEL)
+        if not qvec:
+            return None
+        # Normalize the query ONCE. It is invariant across the whole scoring
+        # loop, and recomputing its norm per comparison was a third of the work.
+        qunit = _unit(qvec)
+        if not qunit:
+            return None
+        # Best-chunk scoring (fix 13/24): a note is as relevant as its most
+        # relevant section, not the average of everything it contains.
+        def _note_score(rel, n):
+            """A note is as relevant as its most relevant section. Pure max won
+            the measured sweep (vs multiplicative type weights on cosine - which
+            deleted log notes outright, recall halved - vs additive nudges, vs a
+            70/30 max+mean blend): fix 13/24, all variants scored on both case
+            sets before shipping."""
+            units = n.get("_unit") or []
+            return max((_dot(qunit, v) for v in units), default=0.0)
+
+        sem = sorted(
+            ({"path": rel, "title": n.get("title", rel), "score": _note_score(rel, n)}
+             for rel, n in notes.items() if n.get("_unit")),
+            key=lambda r: r["score"], reverse=True,
+        )[:_FUSE_DEPTH]
         lex_rank = {r["path"]: i for i, r in enumerate(lexical[:min(_FUSE_DEPTH, _FUSE_LEX_DEPTH)])}
         sem_rank = {r["path"]: i for i, r in enumerate(sem)}
         snippet = {r["path"]: r.get("snippet", "") for r in lexical}
@@ -622,35 +590,15 @@ def _semantic_fuse(
         return None  # any failure -> pure lexical, never break search
 
 
-def search(
-    query: str, *, limit: int = 6, semantic: Optional[bool | str] = None,
-) -> List[Dict[str, Any]]:
+def search(query: str, *, limit: int = 6, semantic: Optional[bool] = None) -> List[Dict[str, Any]]:
     """Bounded keyword search over vault markdown, fused with local semantic search
     when an embedding index + Ollama are available (else pure lexical).
 
-    semantic: None/default keeps the shipped query-aware hybrid behavior; False/
-    "lexical" forces pure lexical; True/"hybrid" forces fusion; "semantic-first"
-    vector-ranks once and reads only the returned candidate files, with no lexical
-    scan or silent fallback."""
+    semantic: force fusion on/off for this call. None (the default, what the MCP
+    serves) follows OBSIDIAN_SEARCH_SEMANTIC. The eval harness passes False to get
+    a genuinely pure lexical ranking - before this switch existed, "--mode lexical"
+    silently measured the fused blend under a false label (stress-test fix 10/24)."""
     vault = resolve_vault()
-    semantic_first = False
-    if isinstance(semantic, str):
-        mode = semantic.strip().lower()
-        if mode == "default":
-            semantic = None
-        elif mode == "lexical":
-            semantic = False
-        elif mode == "hybrid":
-            semantic = True
-        elif mode == "semantic-first":
-            semantic_first = True
-        else:
-            raise ValueError(
-                "semantic must be default, lexical, hybrid, or semantic-first"
-            )
-    elif semantic is not None and semantic is not True and semantic is not False:
-        raise TypeError("semantic must be a bool, string mode, or None")
-
     terms = _query_terms(query)
     if not terms:
         # Query was all stopwords/short tokens - fall back to the raw terms so a
@@ -660,16 +608,13 @@ def search(
     if not terms:
         return []
     current_intent = bool(_CURRENT_INTENT & {t.lower() for t in re.split(r"\W+", query)})
-    limit = max(1, min(int(limit), 20))
-    if semantic_first:
-        return _semantic_first(query, vault, limit, terms, current_intent)
-
     # Query-aware dispatch (fix 11/24): a single exact token ("OKF", "docker") is
     # a lookup, not a question - bare tokens embed near-meaninglessly, and fusing
     # semantic noise into an exact hit demoted it (OKF: lexical rank 2 -> fused
     # rank 5 in the audit). Multi-word queries keep the semantic-weighted fusion.
     if semantic is None and len(terms) == 1:
         semantic = False
+    limit = max(1, min(int(limit), 20))
     scored: List[Dict[str, Any]] = []
     # Every note the scan reached, scoring or not. The staleness check diffs
     # this against the index for free rather than walking the vault a second time.

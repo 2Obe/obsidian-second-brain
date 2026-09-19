@@ -14,7 +14,7 @@ Data tools (deterministic primitives):
 
 | Tool | What it does |
 |---|---|
-| `obsidian_search(query, limit=6, semantic="default")` | Ranked vault search returning snippets + paths. Modes: `default`, `lexical`, `hybrid`, or bounded `semantic-first` |
+| `obsidian_search(query, limit=6)` | Ranked keyword search across vault notes; returns snippets + paths |
 | `obsidian_read_note(path)` | Read a full note by vault-relative path (path-traversal guarded) |
 | `obsidian_save_note(title, content, type, tags)` | Save a new AI-first note to the vault `Inbox/`; the result also reports validation, the index entry, the log line and the post-write command (see Bookkeeping) |
 | `obsidian_capture(text, tags)` | Quick-capture an idea as a lightweight `type: idea` note, with the same bookkeeping |
@@ -96,5 +96,5 @@ Live-test checklist:
 
 ## Notes
 
-- Default and lexical search use a bounded linear vault scan. `semantic-first` skips that scan, ranks the existing semantic index once, and reads only its returned candidates.
+- Search is a bounded linear scan (good for small/medium vaults; large vaults want an index).
 - `vault_ops.py` is intentionally dependency-free and overlaps with the memory-provider integration; the two are separate artifacts and can later share a common module if both are kept.
