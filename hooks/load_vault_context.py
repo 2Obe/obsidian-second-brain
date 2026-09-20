@@ -2,7 +2,7 @@
 """SessionStart hook: tell the session where the skill lives, and (inside the vault)
 load the vault's _CLAUDE.md operating manual.
 
-Two pieces of context are injected:
+Three pieces of context are injected:
 
 1. **Skill root** - always. Slash commands run bundled scripts (`uv run --directory
    <root> -m scripts...`) and read bundled `references/`, but CLAUDE_PLUGIN_ROOT is
@@ -27,6 +27,14 @@ Two pieces of context are injected:
    `bootstrap_vault.py` write that import; this cap is the floor under vaults that
    do not have it.
 
+3. **Precedence note** - only when another vault plugin also holds a SessionStart
+   hook, and only in a vault session. Claude Code merges hook entries and runs them
+   all, so a second Obsidian plugin's rules land in the same context as ours, with
+   nothing saying which folder map and frontmatter schema a write should follow
+   (#300). The note names what else was found and states that the vault's own
+   _CLAUDE.md governs. It detects only: no other hook is edited or unregistered.
+   See `scripts/vault_plugin_scan.py`.
+
 Path normalization handles Windows ("C:\\..."), MSYS ("/c/..."), and POSIX ("/...")
 so the vault match works regardless of which form the harness or env var uses.
 """
@@ -39,6 +47,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import osb_env  # noqa: E402  (depends on the sys.path insert above)
+import vault_plugin_scan  # noqa: E402  (same)
 
 # Claude Code caps a hook's output strings, additionalContext included, at
 # 10,000 characters and replaces anything larger with a 2 KB preview. The margin
@@ -139,6 +148,23 @@ def pointer_block(claude_md: Path, size: int) -> str:
     )
 
 
+def precedence_section(claude_md: Path) -> str:
+    """The #300 note naming other vault tooling in this session, or "" for none.
+
+    Gated on a vault session for the same reason the manual is: outside the vault
+    there is no schema to hold precedence over. Failure is silent by design - the
+    detection reads other people's settings files, and no shape of those is worth
+    costing this session its skill root and its manual.
+    """
+    try:
+        detected = vault_plugin_scan.scan()
+    except Exception:  # noqa: BLE001 - a scan is never worth failing the hook over
+        return ""
+    if not detected:
+        return ""
+    return vault_plugin_scan.precedence_block(detected, claude_md)
+
+
 def main() -> int:
     sections = [skill_root_block()]
     claude_md = vault_manual_path()
@@ -146,10 +172,17 @@ def main() -> int:
         # Characters, not bytes: the cap counts characters and a CJK manual runs
         # about three bytes to each one, so st_size would reject manuals that fit.
         text = claude_md.read_text(encoding="utf-8")
+        # Ahead of the manual, so a session reads which schema governs before it
+        # reads the schema, and inside the budget, so the note the cap drops is
+        # never the one that says another ruleset is present.
+        precedence = precedence_section(claude_md)
+        if precedence:
+            sections.append(precedence)
         manual = full_manual_block(claude_md, text)
-        # Measured against the whole payload, because the skill-root block is in
-        # it too and the cap applies to the string the hook returns.
-        if len(sections[0]) + len(manual) <= CONTEXT_CAP - CONTEXT_MARGIN:
+        # Measured against the whole payload, because the other blocks are in it
+        # too and the cap applies to the string the hook returns.
+        used = sum(len(s) for s in sections)
+        if used + len(manual) <= CONTEXT_CAP - CONTEXT_MARGIN:
             sections.append(manual)
         else:
             sections.append(pointer_block(claude_md, len(text)))

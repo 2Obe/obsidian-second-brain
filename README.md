@@ -894,6 +894,13 @@ Since #248 the research toolkit (`/research`, `/research-deep`, `/x-pulse`, `/yo
 ### Can I have a separate vault per project (multi-repo workflows)?
 Yes. The default `scripts/setup.sh` writes `OBSIDIAN_VAULT_PATH` globally to `~/.claude/settings.json`, but every hook in this skill reads that env var at fire-time. Claude Code merges per-project `.claude/settings.json` on top of the global one, so you can put `{"env": {"OBSIDIAN_VAULT_PATH": "/path/to/repo-vault"}}` in each repo's `.claude/settings.json` and Claude will use that repo's vault whenever you launch a session from that directory. The slash commands and hooks remain globally installed; only the vault path changes. Full recipe in [`SKILL.md`](SKILL.md#per-project-vaults-multi-repo-workflows). One thing this does NOT give you: isolation within a single vault (no `--scope` on commands yet).
 
+### Can I run this alongside another Obsidian plugin?
+Yes, and nothing breaks at the hook level. Claude Code merges hook entries instead of replacing them, and "All matching hooks run in parallel" ([docs](https://code.claude.com/docs/en/hooks)). Both SessionStart hooks fire and both outputs reach your context.
+
+The cost is a schema clash, not a crash. Each plugin states its own folder map and frontmatter fields for the same vault, so a note can land under either one. Since #300 this skill detects the other hook and opens its injected context with a precedence note naming what it found, and the vault's own `_CLAUDE.md` governs every write. It detects only. Your other plugin is never edited, disabled or unregistered.
+
+To see what a session would find, run `python scripts/vault_plugin_scan.py`. To run only one system, remove the other plugin or its hook entry yourself.
+
 ### How do I update to the latest version?
 ```bash
 cd ~/.claude/skills/obsidian-second-brain && git pull

@@ -83,6 +83,11 @@ echo "Registering session context hook..."
 if PYTHON=$(osb_python); then
   # Unquoted: PYTHON may be several words ("py -3", "uv run --no-project python").
   $PYTHON "$SKILL_DIR/scripts/setup_settings_hook.py"
+  # Another vault plugin's SessionStart hook is not replaced by ours, it runs
+  # beside it and puts a second folder and frontmatter schema in the same
+  # context (#300). Said here, while the user can still choose, instead of
+  # leaving it to surface through notes written under the wrong schema.
+  $PYTHON "$SKILL_DIR/scripts/vault_plugin_scan.py" --quiet || true
 else
   echo "  no working Python found (tried python3, python, py -3, uv run) - add this SessionStart hook to $CLAUDE_DIR/settings.json manually:"
   echo "    \"$SKILLS_DIR/obsidian-second-brain/hooks/load_vault_context.sh\""
