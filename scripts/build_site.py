@@ -4,7 +4,7 @@ GitHub Pages has been live and building for this repo for some time, serving the
 README from the repo root. Meanwhile `commands/` holds 47 files that each carry a
 one-line `description`, a `category`, and `triggers_en` / `triggers_de` /
 `triggers_es` / `triggers_pt` / `triggers_zh` arrays. Those trigger arrays are, literally, the
-sentences a person would type when they want the thing - written by hand, in four
+sentences a person would type when they want the thing - written by hand, in five
 languages, and until now visible only to the dispatcher adapters.
 
 So this generates one page per command plus an index. Content, hosting and build
