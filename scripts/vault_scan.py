@@ -66,6 +66,22 @@ def excluded_dirs(*extra: str) -> frozenset[str]:
     return frozenset(d.lower() for d in (*BASE_EXCLUDE_DIRS, *extra))
 
 
+def is_hidden(parts) -> bool:
+    """True when any path component starts with a dot.
+
+    On a volume with no native extended attributes (exFAT, FAT32, many SMB
+    shares) macOS writes a small binary ``._<name>`` companion beside every
+    file it touches.  ``rglob("*.md")`` matches ``._Note.md``, and counting
+    it doubles the note in every stat, graph, and export.  Dot-prefixed
+    generally rather than ``._`` specifically, because that is the rule
+    Obsidian applies: it indexes no dot-prefixed file or folder.
+
+    vault_health already does this via its ``_is_hidden()`` helper (#290).
+    Placing the check here lets every tool that imports vault_scan benefit.
+    """
+    return any(str(p).startswith(".") for p in parts)
+
+
 def is_excluded(parts, excludes: frozenset[str]) -> bool:
     """True when any path component matches, compared case-insensitively.
 

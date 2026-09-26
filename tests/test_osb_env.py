@@ -15,18 +15,16 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+from _bash import BASH
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 import osb_env  # noqa: E402  (depends on the sys.path insert above)
-
-BASH = shutil.which("bash") or "/bin/bash"
 
 
 @pytest.fixture(autouse=True)

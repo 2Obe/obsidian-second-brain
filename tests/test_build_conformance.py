@@ -25,6 +25,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from _bash import BASH
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DIST = REPO_ROOT / "dist"
@@ -52,7 +53,7 @@ def _tree_relative(cited: str) -> str:
 def built() -> Path:
     """Build every platform once, the way a release actually does it."""
     result = subprocess.run(
-        ["bash", "scripts/build.sh"],
+        [BASH, "scripts/build.sh"],
         cwd=REPO_ROOT,
         check=False,
         capture_output=True,

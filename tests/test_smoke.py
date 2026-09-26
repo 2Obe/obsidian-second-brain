@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from _bash import BASH
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -36,7 +37,7 @@ def test_codex_cli_build_generates_expected_files():
     Agent Skill per command (.agents/skills/<name>/SKILL.md). This guards the
     adapter pipeline that every command change depends on."""
     result = subprocess.run(
-        ["bash", "scripts/build.sh", "--platform", "codex-cli"],
+        [BASH, "scripts/build.sh", "--platform", "codex-cli"],
         cwd=REPO_ROOT,
         check=False,
         capture_output=True,
@@ -65,7 +66,7 @@ def test_hermes_build_generates_native_skills():
     skills/<category>/<name>/SKILL.md, with the required frontmatter Hermes
     needs to load it (name, description, version, author, license)."""
     result = subprocess.run(
-        ["bash", "scripts/build.sh", "--platform", "hermes"],
+        [BASH, "scripts/build.sh", "--platform", "hermes"],
         cwd=REPO_ROOT,
         check=False,
         capture_output=True,
@@ -141,7 +142,7 @@ def test_pi_build_generates_package():
     prompts/skills entries, prompt templates with frontmatter, and a discovery
     skill with valid Agent Skills frontmatter."""
     result = subprocess.run(
-        ["bash", "scripts/build.sh", "--platform", "pi"],
+        [BASH, "scripts/build.sh", "--platform", "pi"],
         cwd=REPO_ROOT,
         check=False,
         capture_output=True,
@@ -183,7 +184,7 @@ def test_agent_skills_build_generates_spec_compliant_tree():
     skills/<name>/SKILL.md per command plus the shared obsidian-core engine
     skill, with NO root SKILL.md (which would shadow the nested skills)."""
     result = subprocess.run(
-        ["bash", "scripts/build.sh", "--platform", "agent-skills"],
+        [BASH, "scripts/build.sh", "--platform", "agent-skills"],
         cwd=REPO_ROOT,
         check=False,
         capture_output=True,
@@ -245,7 +246,7 @@ def test_grok_bot_build_generates_mcp_backed_skills():
     the shared obsidian-core engine skill, designed for Grok Bot / Sand with
     the user-obsidian-second-brain MCP server providing vault I/O."""
     result = subprocess.run(
-        ["bash", "scripts/build.sh", "--platform", "grok-bot"],
+        [BASH, "scripts/build.sh", "--platform", "grok-bot"],
         cwd=REPO_ROOT,
         check=False,
         capture_output=True,
@@ -1066,17 +1067,17 @@ def test_update_vault_integration_script_guards():
     script = REPO_ROOT / "scripts/update-vault-integration.sh"
     assert script.is_file()
 
-    syntax = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
+    syntax = subprocess.run([BASH, "-n", str(script)], capture_output=True, text=True)
     assert syntax.returncode == 0, syntax.stderr
 
-    no_vault = subprocess.run(["bash", str(script)], capture_output=True, text=True)
+    no_vault = subprocess.run([BASH, str(script)], capture_output=True, text=True)
     assert no_vault.returncode != 0
     assert "--vault is required" in no_vault.stderr
 
     import tempfile
     with tempfile.TemporaryDirectory() as tmp:
         bogus = subprocess.run(
-            ["bash", str(script), "--vault", tmp, "--platform", "bogus"],
+            [BASH, str(script), "--vault", tmp, "--platform", "bogus"],
             capture_output=True, text=True,
         )
         assert bogus.returncode != 0
@@ -1100,7 +1101,7 @@ def test_retrieval_eval_external_mode(tmp_path):
 
     env = dict(os.environ,
                OBSIDIAN_VAULT_PATH=str(vault),
-               RETRIEVAL_EVAL_EXTERNAL_CMD=f"bash {engine}")
+               RETRIEVAL_EVAL_EXTERNAL_CMD=f'"{BASH}" {engine}')
     result = subprocess.run(
         [sys.executable, "scripts/eval/retrieval_eval.py",
          "--cases", str(cases), "--mode", "external", "--json"],
@@ -1166,7 +1167,7 @@ def test_validate_hook_flags_secrets(tmp_path):
 
     def run(f):
         return subprocess.run(
-            ["bash", str(hook)],
+            [BASH, str(hook)],
             input=json.dumps({"tool_input": {"file_path": str(f)}}),
             env=dict(os.environ, OBSIDIAN_VAULT_PATH=str(tmp_path)),
             capture_output=True, text=True,
@@ -1204,7 +1205,7 @@ def test_validate_hook_accepts_vscode_extension_payload(tmp_path):
 
     def run(payload: dict):
         return subprocess.run(
-            ["bash", str(hook)],
+            [BASH, str(hook)],
             input=json.dumps(payload),
             env=dict(os.environ, OBSIDIAN_VAULT_PATH=str(tmp_path)),
             capture_output=True,
@@ -1244,7 +1245,7 @@ def test_validate_hook_accepts_the_callout_preamble(tmp_path):
         note = vault / name
         note.write_text(fm + body, encoding="utf-8")
         return subprocess.run(
-            ["bash", str(hook)],
+            [BASH, str(hook)],
             input=json.dumps({"tool_name": "Write", "tool_input": {"file_path": str(note)}}),
             env=dict(os.environ, OBSIDIAN_VAULT_PATH=str(vault)),
             capture_output=True, text=True,
@@ -1286,7 +1287,7 @@ def test_validate_hook_is_loud_when_the_payload_has_no_known_path_key(tmp_path):
 
     def run(payload):
         return subprocess.run(
-            ["bash", str(hook)], input=json.dumps(payload), env=env,
+            [BASH, str(hook)], input=json.dumps(payload), env=env,
             capture_output=True, text=True,
         )
 
@@ -1436,7 +1437,7 @@ def test_relative_reference_citations_are_not_silent():
     is standing when it reads.
     """
     subprocess.run(
-        ["bash", "scripts/build.sh"],
+        [BASH, "scripts/build.sh"],
         cwd=REPO_ROOT, capture_output=True, text=True, check=True,
     )
 
@@ -1485,7 +1486,7 @@ def test_validate_hook_flags_tags_obsidian_renders_broken(tmp_path):
 
     def run(f):
         return subprocess.run(
-            ["bash", str(hook)],
+            [BASH, str(hook)],
             input=json.dumps({"tool_input": {"file_path": str(f)}}),
             env=dict(os.environ, OBSIDIAN_VAULT_PATH=str(tmp_path)),
             capture_output=True, text=True,
@@ -1531,7 +1532,7 @@ def test_validate_hook_skips_claude_dir(tmp_path):
 
     def run(f):
         return subprocess.run(
-            ["bash", str(hook)],
+            [BASH, str(hook)],
             input=json.dumps({"tool_name": "Write", "tool_input": {"file_path": str(f)}}),
             env=dict(os.environ, OBSIDIAN_VAULT_PATH=str(tmp_path)),
             capture_output=True, text=True,
@@ -1544,3 +1545,26 @@ def test_validate_hook_skips_claude_dir(tmp_path):
     checked = run(note)
     assert checked.returncode == 0, checked.stderr
     assert "AI-first" in checked.stdout or "warning" in checked.stdout.lower(), checked.stdout
+
+
+def test_validate_hook_skips_claude_memory_dir(tmp_path):
+    """#311: with autoMemoryDirectory inside the vault, Claude Code writes its
+    auto-memory files to .claude-memory/. They follow Claude Code's schema
+    (name, description, metadata.type), not the vault's, so every write came back
+    as decision: block. The #249 skip needs the literal /.claude/ segment and
+    never matched .claude-memory/."""
+    hook = REPO_ROOT / "hooks/validate-ai-first.sh"
+    mem = tmp_path / ".claude-memory" / "some-memory.md"
+    mem.parent.mkdir(parents=True)
+    mem.write_text(
+        "---\nname: some-memory\ndescription: a memory\nmetadata:\n  type: feedback\n---\n\nBody.\n",
+        encoding="utf-8",
+    )
+    r = subprocess.run(
+        [BASH, str(hook)],
+        input=json.dumps({"tool_name": "Write", "tool_input": {"file_path": str(mem)}}),
+        env=dict(os.environ, OBSIDIAN_VAULT_PATH=str(tmp_path)),
+        capture_output=True, text=True,
+    )
+    assert r.returncode == 0, r.stderr
+    assert not r.stdout.strip(), r.stdout

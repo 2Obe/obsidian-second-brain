@@ -4,17 +4,15 @@ does. Guards scripts/setup_settings_hook.py's pure register() (no real settings.
 touched here)."""
 from __future__ import annotations
 
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+from _bash import BASH
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 import setup_settings_hook as sh  # noqa: E402
-
-# Resolved by path: on Windows a bare "bash" can resolve to WSL's launcher in System32.
-BASH = shutil.which("bash") or "/bin/bash"
 
 
 def _commands(settings: dict) -> list[str]:
