@@ -13,17 +13,14 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+from _bash import BASH
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-# Resolved now: the tests below hand bash a PATH with no interpreter on it,
-# and an empty PATH would leave bash itself unfindable.
-BASH = shutil.which("bash") or "/bin/bash"
 HELPER = REPO_ROOT / "scripts" / "python-interpreter.sh"
 INLINE_COPIES = ("hooks/load_vault_context.sh", "hooks/validate-ai-first.sh")
 

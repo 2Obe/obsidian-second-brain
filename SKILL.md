@@ -35,7 +35,7 @@ Try these methods in order. Use the first one available:
 **Method 0 - SessionStart hook (if configured):**
 If `hooks/load_vault_context.py` is wired as a SessionStart hook in `~/.claude/settings.json`, `_CLAUDE.md` is injected into context automatically at session start.
 Skip step 1 only when the manual is actually in your context, not merely because the hook is configured. Claude Code caps hook context at 10,000 characters, so a larger manual cannot be injected; in that case the hook says so in as many words ("NOT loaded - read it") and you read the file yourself (#270). A vault whose `.claude/CLAUDE.md` holds `@../_CLAUDE.md` sidesteps the cap entirely - Claude Code imports that natively at any size.
-To wire it: `bash scripts/setup.sh "/path/to/vault"` or run `/obsidian-setup`.
+To wire it: `bash scripts/setup.sh "/path/to/vault"`.
 If another Obsidian plugin also holds a SessionStart hook, the injected context opens with a precedence note naming it (#300). Claude Code runs every SessionStart hook and adds each output here, so you may be holding two folder maps and two frontmatter schemas for one vault. The vault's own `_CLAUDE.md` governs every write. Where the other tooling disagrees, follow the manual and say so in your reply.
 
 **Method A - Direct filesystem (default, always works):**
@@ -1273,7 +1273,7 @@ A non-blocking validator that fires after every `Write` or `Edit` on a markdown 
 
 **What it skips:**
 - Files outside `OBSIDIAN_VAULT_PATH`
-- Files under `raw/`, `templates/`, `_export/`, `.obsidian/`, `.git/`, `.trash/`, `.claude/` (slash-command copies and settings are not notes - #249)
+- Files under `raw/`, `templates/`, `_export/`, `.obsidian/`, `.git/`, `.trash/`, `.claude/` (slash-command copies and settings are not notes - #249), `.claude-memory/` (Claude Code auto-memory files follow their own schema - #311)
 - Payloads with no `tool_name` (nothing fired)
 
 **What it refuses to skip silently:** a payload that names a tool but carries no path key the hook knows (`file_path`, `filePath`, `notebook_path`). The matcher fired, so a write happened and went unchecked; the hook prints one stderr line naming the tool and the payload keys and exits 1 (non-blocking, the write stands) instead of exiting 0 and looking like "not a vault file".

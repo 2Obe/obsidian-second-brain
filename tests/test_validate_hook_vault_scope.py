@@ -16,6 +16,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from _bash import BASH
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HOOK = REPO_ROOT / "hooks/validate-ai-first.sh"
@@ -27,7 +28,7 @@ BARE_NOTE = "# A note\n\nBody text.\n"
 
 def run(vault: Path, note: Path):
     return subprocess.run(
-        ["bash", str(HOOK)],
+        [BASH, str(HOOK)],
         input=json.dumps({"tool_name": "Write", "tool_input": {"file_path": str(note)}}),
         env=dict(os.environ, OBSIDIAN_VAULT_PATH=str(vault)),
         capture_output=True, text=True,

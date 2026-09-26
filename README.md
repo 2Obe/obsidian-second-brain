@@ -148,13 +148,13 @@ Free transcript via youtube-transcript-api. Optional metadata + top comments via
 |---|---|---|
 | Saving decisions | Copy-paste or lose them | Auto-saved to the right project note |
 | Daily notes | Write it yourself, forget half the time | Created automatically |
-| Finding patterns | Re-read dozens of notes | `/emerge` finds them for you |
-| Challenging yourself | Nobody pushes back | `/challenge` uses your own history against you |
-| Session continuity | Re-explain every time | `/world` loads full context in 10 seconds |
-| Ingesting content | Read it, forget it | `/ingest` rewrites 5-15 vault pages from 1 source (URLs, PDFs, audio, screenshots) |
-| Contradictions | You don't know they exist | `/reconcile` resolves them automatically |
-| Synthesis | You connect dots manually | `/synthesize` finds patterns across sources on its own |
-| Sharing vault data | Only Claude can read it | `/export` gives any AI tool a clean snapshot |
+| Finding patterns | Re-read dozens of notes | `/obsidian-emerge` finds them for you |
+| Challenging yourself | Nobody pushes back | `/obsidian-challenge` uses your own history against you |
+| Session continuity | Re-explain every time | `/obsidian-world` loads full context in 10 seconds |
+| Ingesting content | Read it, forget it | `/obsidian-ingest` rewrites 5-15 vault pages from 1 source (URLs, PDFs, audio, screenshots) |
+| Contradictions | You don't know they exist | `/obsidian-reconcile` resolves them automatically |
+| Synthesis | You connect dots manually | `/obsidian-synthesize` finds patterns across sources on its own |
+| Sharing vault data | Only Claude can read it | `/obsidian-export` gives any AI tool a clean snapshot |
 | Facts change over time | Old info gets overwritten | Bi-temporal facts track when it was true AND when the vault learned it |
 | Starting a new session | Re-explain who you are | `CRITICAL_FACTS.md` loads your identity in ~120 tokens |
 | Reading an X thread | Open X, scroll, screenshot, paste | `/x-read [url]` returns post + thread + sentiment + voices |
@@ -745,6 +745,8 @@ There is also a dedicated **Hermes Agent build** that emits the commands as nati
 bash scripts/build.sh --platform hermes
 # then follow dist/hermes/INSTALL.md (copy into ~/.hermes/skills/ or add as a tap)
 ```
+
+Do not run `hermes plugins install` on this repo's URL. The repo root is not a Hermes plugin (it has no `plugin.yaml`), and Hermes reports success anyway while registering nothing ([#298](https://github.com/eugeniughelbur/obsidian-second-brain/issues/298)). Use the skills build above.
 
 This is the skill/playbook half of the Hermes work; the bounded vault-data half is the [MCP connector](integrations/obsidian-mcp-server/). Native cron and lifecycle-hook integration are tracked in [Issue #79](https://github.com/eugeniughelbur/obsidian-second-brain/issues/79).
 

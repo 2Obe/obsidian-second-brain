@@ -14,6 +14,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from _bash import BASH
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HOOK = REPO_ROOT / "hooks/validate-ai-first.sh"
@@ -36,7 +37,7 @@ KOREAN = "\uacfc\uc801\ud569 \uc774\uc57c\uae30"  # Hangul
 
 def run(vault: Path, note: Path, **env):
     return subprocess.run(
-        ["bash", str(HOOK)],
+        [BASH, str(HOOK)],
         input=json.dumps({"tool_name": "Write", "tool_input": {"file_path": str(note)}}),
         env=dict(os.environ, OBSIDIAN_VAULT_PATH=str(vault), **env),
         capture_output=True, text=True,
@@ -80,13 +81,23 @@ def test_the_same_characters_in_english_prose_are_still_flagged(vault):
     assert "U+2014 em-dash" in msg and "U+201C" in msg
 
 
-def test_unicode_math_and_nbsp_stay_banned_inside_cjk(vault):
-    """No script writes >= as U+2265, and a non-breaking space is invisible
-    damage in any language, so the carve-out does not reach them."""
+def test_nbsp_stays_banned_inside_cjk_but_math_signs_do_not(vault):
+    """A non-breaking space is invisible damage in any language, so the
+    carve-out does not reach it. The math signs are ordinary running text in
+    CJK prose, where `>=` would be the worse rewrite (#296)."""
     body = f"{CHINESE}\uff1a\u9608\u503c \u2265 0.9\u3002\u4e00\u4e2a\u00a0\u7a7a\u683c\u3002\n"
     msg = message(run(vault, write(vault, "math.md", body)))
-    assert "U+2265" in msg and "U+00A0" in msg
+    assert "U+00A0" in msg
+    assert "U+2265" not in msg
     assert "em-dash" not in msg
+
+
+def test_math_signs_stay_banned_in_english_prose(vault):
+    """#296 moves the math signs into the language-gated set, not out of the
+    ban: on an English line U+2265, U+2264 and U+2260 still flag."""
+    body = "The threshold is \u2265 0.9, \u2264 1.0 and \u2260 0.5.\n"
+    msg = message(run(vault, write(vault, "math_en.md", body)))
+    assert "U+2265" in msg and "U+2264" in msg and "U+2260" in msg
 
 
 def test_a_cjk_line_does_not_excuse_the_rest_of_the_note(vault):
@@ -128,7 +139,7 @@ def test_skip_checks_is_read_from_the_config_env_file(vault, tmp_path):
 
     env_file.write_text(f"OBSIDIAN_VAULT_PATH={vault}\n", encoding="utf-8")
     control = subprocess.run(
-        ["bash", str(HOOK)],
+        [BASH, str(HOOK)],
         input=json.dumps({"tool_name": "Write", "tool_input": {"file_path": str(note)}}),
         env={k: v for k, v in os.environ.items() if k != "OBSIDIAN_VAULT_PATH"}
         | {"OBSIDIAN_ENV_FILE": str(env_file)},
@@ -140,7 +151,7 @@ def test_skip_checks_is_read_from_the_config_env_file(vault, tmp_path):
         f'OBSIDIAN_VAULT_PATH={vault}\nAI_FIRST_SKIP_CHECKS="5"\n', encoding="utf-8"
     )
     quiet = subprocess.run(
-        ["bash", str(HOOK)],
+        [BASH, str(HOOK)],
         input=json.dumps({"tool_name": "Write", "tool_input": {"file_path": str(note)}}),
         env={k: v for k, v in os.environ.items() if k != "OBSIDIAN_VAULT_PATH"}
         | {"OBSIDIAN_ENV_FILE": str(env_file)},
