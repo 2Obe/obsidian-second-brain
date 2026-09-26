@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Search and vault stats treat company and tool notes as entities, like people (#302, raised by @etcook).** #286 gave companies and tools their own schemas, but search only boosted `type: person` notes and the stats only counted people. `vault_ops.search()` now gives `company` and `tool` notes the same 1.5 boost. Measured on a real vault with 11 such notes, searched by title: 2 moved up to #1 (from #2 and #5), none moved down, and the three retrieval case sets scored the same before and after. `vault_stats.py` adds an `entities` block with a total and a by-kind split, shown as an `Entities` line in the `index.md` stats. The `people` block is unchanged, so anything reading it keeps working.
 
+### Fixed
+
+- **The write-time hook skipped every note in a vault kept under a folder named `.obsidian`, and said nothing (reported by @jameswolensky).** The skip list in `hooks/validate-ai-first.sh` carried a bare `*/.obsidian/*`, meant for the vault's config directory. The pattern matches that segment anywhere in a path, not under the vault root, so a vault at `~/.obsidian/life-os` matched on every note and the hook returned before any check ran. Nothing errored and nothing printed: the hook exits 0 whether it validated a note or skipped it, so a vault laid out this way got no frontmatter checks, no preamble check and no banned-character check for as long as it existed, and looked exactly like a vault that was passing. The entry is now scoped to `"$VAULT_KEY"/.obsidian/*`. `$VAULT_KEY` rather than `$VAULT`, because `path_key()` lowercases on Windows and the block sets `nocasematch` there, so the unfolded path would stop matching the folded `$FILE_KEY` on the one platform the surrounding code takes care over. The other entries are left alone: they are relative segments like `*/raw/*` that carry no vault-root ambiguity. Five tests in `tests/test_validate_hook_vault_scope.py`, two of which fail against the old pattern.
+
 ## [0.17.0] - 2026-09-26 - The Neighbors
 
 ### Added
