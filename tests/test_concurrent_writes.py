@@ -39,7 +39,9 @@ NOTE = "---\ntype: note\ndate: 2026-09-13\ntags: [a]\nai-first: true\n---\n\n## 
 
 def test_an_untouched_note_is_rewritten(tmp_path):
     note = tmp_path / "n.md"
-    note.write_text(NOTE, encoding="utf-8")
+    # Bytes, not write_text: on Windows text mode turns "\n" into "\r\n", and the
+    # expected content passed below is the exact text on disk, as read_exact gives.
+    note.write_bytes(NOTE.encode("utf-8"))
     note_io.write_exact_if_unchanged(note, NOTE + "mine\n", NOTE)
     assert note.read_text(encoding="utf-8").endswith("mine\n")
 
