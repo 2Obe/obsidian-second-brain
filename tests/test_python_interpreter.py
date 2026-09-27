@@ -72,11 +72,13 @@ def resolve(path_value: str) -> subprocess.CompletedProcess:
 def test_a_name_that_exists_but_does_not_run_is_passed_over(stub_dir):
     """The whole bug in one assertion: `command -v` would have stopped here."""
     exists = subprocess.run([BASH, "-c", "command -v python3"],
-                            env=dict(os.environ, PATH=f"{stub_dir}:{os.environ['PATH']}"),
+                            env=dict(os.environ, PATH=f"{stub_dir}{os.pathsep}{os.environ['PATH']}"),
                             capture_output=True, text=True)
-    assert exists.returncode == 0 and str(stub_dir) in exists.stdout, "the stub must be found first"
+    # Match on the unique tmp directory name: Git Bash prints /c/Users/... where
+    # Python spells C:\\Users\\..., the same directory either way.
+    assert exists.returncode == 0 and stub_dir.parent.name in exists.stdout, "the stub must be found first"
 
-    r = resolve(f"{stub_dir}:{os.environ['PATH']}")
+    r = resolve(f"{stub_dir}{os.pathsep}{os.environ['PATH']}")
     assert r.returncode == 0, r.stderr
     assert r.stdout and "python3" != r.stdout.strip(), f"resolved to the stub: {r.stdout!r}"
 
@@ -110,7 +112,7 @@ def test_the_wrapper_injects_context_even_when_python3_is_a_stub(stub_dir, tmp_p
     r = subprocess.run(
         [BASH, str(REPO_ROOT / "hooks/load_vault_context.sh")],
         input=json.dumps({"cwd": str(vault)}),
-        env=dict(os.environ, PATH=f"{stub_dir}:{os.environ['PATH']}",
+        env=dict(os.environ, PATH=f"{stub_dir}{os.pathsep}{os.environ['PATH']}",
                  OBSIDIAN_VAULT_PATH=str(vault)),
         capture_output=True, text=True,
     )
@@ -146,7 +148,7 @@ def test_the_validator_runs_its_python_checks_through_the_resolved_interpreter(s
     r = subprocess.run(
         [BASH, str(REPO_ROOT / "hooks/validate-ai-first.sh")],
         input=json.dumps({"tool_name": "Write", "tool_input": {"file_path": str(note)}}),
-        env=dict(os.environ, PATH=f"{stub_dir}:{os.environ['PATH']}",
+        env=dict(os.environ, PATH=f"{stub_dir}{os.pathsep}{os.environ['PATH']}",
                  OBSIDIAN_VAULT_PATH=str(vault)),
         capture_output=True, text=True,
     )
