@@ -171,7 +171,10 @@ FILE=$(printf '%s' "$INPUT" | jq -r '
 if [[ -z "$FILE" ]]; then
   TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null)
   [[ -z "$TOOL" ]] && exit 0
-  KEYS=$(printf '%s' "$INPUT" | jq -r '[.tool_input, .args] | map(select(type == "object")) | add // {} | keys | join(", ")' 2>/dev/null)
+  # Top-level scalar keys count too: a host that puts file_path beside
+  # tool_name instead of inside tool_input should see that key named here,
+  # not "none" (#171).
+  KEYS=$(printf '%s' "$INPUT" | jq -r '[.tool_input, .args, (del(.tool_name) | to_entries | map(select(.value | type != "object")) | from_entries)] | map(select(type == "object")) | add // {} | keys | join(", ")' 2>/dev/null)
   printf 'AI-first hook: fired on %s but found no file path to check (payload keys: %s). The write was NOT validated.\n' "$TOOL" "${KEYS:-none}" >&2
   exit 1
 fi

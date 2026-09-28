@@ -1307,6 +1307,18 @@ def test_validate_hook_is_loud_when_the_payload_has_no_known_path_key(tmp_path):
     assert r.returncode == 0
     assert "frontmatter" in json.loads(r.stdout)["systemMessage"]
 
+    # A path key one level up is named, not reported as "none".
+    r = run({"tool_name": "Write", "file_path": str(bad)})
+    assert r.returncode == 1
+    assert "payload keys: file_path)" in r.stderr
+    r = run({"tool_name": "Write", "tool_input": {}})
+    assert "payload keys: none)" in r.stderr
+
+    # A NotebookEdit that names an .md in the vault gets past every gate and is validated.
+    r = run({"tool_name": "NotebookEdit", "tool_input": {"notebook_path": str(bad)}})
+    assert r.returncode == 0
+    assert "frontmatter" in json.loads(r.stdout)["systemMessage"]
+
 
 def test_mcp_validate_note_accepts_the_callout_preamble(tmp_path, monkeypatch):
     """The MCP validator and the hook must agree on rule 2 (#237)."""
