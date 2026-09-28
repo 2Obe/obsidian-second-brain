@@ -171,7 +171,7 @@ def main() -> int:
     if claude_md is not None:
         # Characters, not bytes: the cap counts characters and a CJK manual runs
         # about three bytes to each one, so st_size would reject manuals that fit.
-        text = claude_md.read_text(encoding="utf-8")
+        text = claude_md.read_text(encoding="utf-8-sig")
         # Ahead of the manual, so a session reads which schema governs before it
         # reads the schema, and inside the budget, so the note the cap drops is
         # never the one that says another ruleset is present.
