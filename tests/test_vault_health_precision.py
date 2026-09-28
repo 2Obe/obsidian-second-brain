@@ -409,3 +409,30 @@ def test_a_root_note_named_like_an_exempt_folder_is_still_checked(tmp_path):
 
     orphans = {i["files"][0] for i in _issues(_health(vault), "orphan")}
     assert "Logs.md" in orphans
+
+
+PLAIN_BODY = "## [2026-01-05] save | an appended entry in a file with no frontmatter\n"
+
+
+def test_system_files_need_no_frontmatter_at_any_depth(tmp_path):
+    """The write-time validator exempts _CLAUDE.md, Home.md, index.md, log.md and
+    catchup.md wherever they sit. The health check exempted only the first two, and
+    only at the root, so a monolithic log.md (plain appended entries) and a nested
+    vault's own _CLAUDE.md (the template has no frontmatter) were reported."""
+    vault = tmp_path / "vault"
+    (vault / "personal").mkdir(parents=True)
+    for rel in ("log.md", "index.md", "catchup.md", "personal/_CLAUDE.md", "personal/log.md"):
+        (vault / rel).write_text(PLAIN_BODY, encoding="utf-8")
+
+    flagged = {i["files"][0] for i in _issues(_health(vault), "no_frontmatter")}
+    assert flagged == set(), flagged
+
+
+def test_a_note_merely_ending_in_a_system_name_still_needs_frontmatter(tmp_path):
+    """Matched on the whole filename: `changelog.md` is a note, not `log.md`."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "changelog.md").write_text(PLAIN_BODY, encoding="utf-8")
+
+    flagged = {i["files"][0] for i in _issues(_health(vault), "no_frontmatter")}
+    assert "changelog.md" in flagged

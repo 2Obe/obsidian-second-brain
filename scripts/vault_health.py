@@ -715,13 +715,21 @@ def check_stale_tasks(notes: dict) -> list:
     return issues
 
 
+# System files that carry no frontmatter by design. The same set, matched by
+# filename at any depth, that hooks/validate-ai-first.sh exempts at write time, so
+# a file the hook lets through is not reported here later.
+_FRONTMATTER_EXEMPT_FILES = frozenset({
+    "_CLAUDE.md", "Home.md", "index.md", "log.md", "catchup.md",
+})
+
+
 def check_missing_frontmatter(notes: dict) -> list:
     issues = []
     skip = {"Templates", "_trash", ".obsidian"}
     for rel, note in notes.items():
         if any(s in rel for s in skip):
             continue
-        if rel in ("Home.md", "_CLAUDE.md"):
+        if rel.rsplit("/", 1)[-1] in _FRONTMATTER_EXEMPT_FILES:
             continue
         if note.get("code_fence_wrapped"):
             # Reported by check_code_fence_wrapped instead. The frontmatter exists but is
