@@ -171,7 +171,10 @@ FILE=$(printf '%s' "$INPUT" | jq -r '
 if [[ -z "$FILE" ]]; then
   TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null)
   [[ -z "$TOOL" ]] && exit 0
-  KEYS=$(printf '%s' "$INPUT" | jq -r '[.tool_input, .args] | map(select(type == "object")) | add // {} | keys | join(", ")' 2>/dev/null)
+  # Top-level scalar keys count too: a host that puts file_path beside
+  # tool_name instead of inside tool_input should see that key named here,
+  # not "none" (#171).
+  KEYS=$(printf '%s' "$INPUT" | jq -r '[.tool_input, .args, (del(.tool_name) | to_entries | map(select(.value | type != "object")) | from_entries)] | map(select(type == "object")) | add // {} | keys | join(", ")' 2>/dev/null)
   printf 'AI-first hook: fired on %s but found no file path to check (payload keys: %s). The write was NOT validated.\n' "$TOOL" "${KEYS:-none}" >&2
   exit 1
 fi
@@ -234,7 +237,7 @@ esac
 # below keep matching the lowercased key; elsewhere the case is exact.
 case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) shopt -s nocasematch ;; esac
 case "$FILE_KEY" in
-  */raw/*|*/templates/*|*/_export/*|*/.obsidian/*|*/.git/*|*/.trash/*|*/.claude/*|*/boards/*|*/Boards/*|*/Logs/*|*/_CLAUDE.md|*/Home.md|*/index.md|*/log.md|*/catchup.md)
+  */raw/*|*/templates/*|*/_export/*|"$VAULT_KEY"/.obsidian/*|*/.git/*|*/.trash/*|*/.claude/*|*/.claude-memory/*|*/boards/*|*/Boards/*|*/Logs/*|*/_CLAUDE.md|*/Home.md|*/index.md|*/log.md|*/catchup.md)
     exit 0 ;;
 esac
 shopt -u nocasematch
@@ -253,15 +256,22 @@ fi
 
 # A note saved with CRLF line endings (a Windows editor, git autocrlf) would fail
 # every delimiter check below, because each line carries a trailing carriage
-# return; the checks read a CR-free copy instead. BASENAME and the warnings
-# still name the real file.
+# return; the checks read a CR-free copy instead. A leading UTF-8 BOM (some
+# Windows editors write one) breaks the first-line check the same way, so the
+# copy drops it too (#295). BASENAME and the warnings still name the real file.
 READ_FILE="$FILE"
-if grep -q $'\r' "$FILE" 2>/dev/null; then
+HAS_BOM=0
+[[ "$(head -c 3 "$FILE" 2>/dev/null | od -An -tx1 | tr -d ' \n')" == "efbbbf" ]] && HAS_BOM=1
+if [[ "$HAS_BOM" == 1 ]] || grep -q $'\r' "$FILE" 2>/dev/null; then
   CR_FREE=$(mktemp "${TMPDIR:-/tmp}/ai-first.XXXXXX" 2>/dev/null) || exit 0
   trap 'rm -f "$CR_FREE"' EXIT
   # A copy that failed halfway is not worth validating: silence beats a false
   # warning raised against the original.
-  tr -d '\r' < "$FILE" > "$CR_FREE" || exit 0
+  if [[ "$HAS_BOM" == 1 ]]; then
+    tail -c +4 "$FILE" | tr -d '\r' > "$CR_FREE" || exit 0
+  else
+    tr -d '\r' < "$FILE" > "$CR_FREE" || exit 0
+  fi
   READ_FILE="$CR_FREE"
 fi
 
@@ -339,14 +349,16 @@ ASCII_CONTEXT = {
     '‘': ('U+2018 left single quote',  "'"),
     '’': ('U+2019 right single quote', "'"),
     '…': ('U+2026 ellipsis',           '...'),
-}
-
-# Substitutions in every language: no script writes >= as U+2265, and a
-# non-breaking space is invisible damage wherever it lands.
-ALWAYS = {
+    # The math signs are ordinary running text in CJK prose, where `>=` would
+    # be the worse rewrite (#296). In English prose they are still substitutions.
     '≥': ('U+2265 >=',                 '>='),
     '≤': ('U+2264 <=',                 '<='),
     '≠': ('U+2260 !=',                 '!='),
+}
+
+# Substitutions in every language: a non-breaking space is invisible damage
+# wherever it lands.
+ALWAYS = {
     ' ': ('U+00A0 non-breaking space', ' '),
 }
 

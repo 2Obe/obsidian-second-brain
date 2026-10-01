@@ -92,6 +92,8 @@ WIKI_PATHS = {
     "Tasks": "wiki/tasks",
     "Projects": "wiki/projects",
     "People": "wiki/entities",
+    "Companies": "wiki/entities",
+    "Tools": "wiki/entities",
     "Ideas": "wiki/concepts",
     "Knowledge": "wiki/concepts",
     "Synthesis": "wiki/concepts",
@@ -211,7 +213,7 @@ PRESETS = {
     "default": {
         "purpose": "Life OS - work, personal, finances",
         "folders": [
-            "Daily", "Dev Logs", "Tasks", "Projects", "People",
+            "Daily", "Dev Logs", "Tasks", "Projects", "People", "Companies", "Tools",
             "Boards", "Knowledge", "Learning", "Ideas", "Content/LinkedIn", "Content/X",
             "Goals", "Health", "Finances/Spending", "Jobs", "Businesses",
             "Mentions", "Reviews", "Life Chapters", "Templates", "_trash",
@@ -225,7 +227,7 @@ PRESETS = {
     "executive": {
         "purpose": "Decisions, people, meetings, strategic planning",
         "folders": [
-            "Daily", "People", "Meetings", "Decisions", "OKRs",
+            "Daily", "People", "Companies", "Tools", "Meetings", "Decisions", "OKRs",
             "Projects", "Boards", "Knowledge", "Reviews",
             "Templates", "_trash",
         ],
@@ -235,7 +237,7 @@ PRESETS = {
     "builder": {
         "purpose": "Projects, dev logs, architecture, debugging",
         "folders": [
-            "Daily", "Projects", "People", "Dev Logs", "Architecture", "Debugging",
+            "Daily", "Projects", "People", "Companies", "Tools", "Dev Logs", "Architecture", "Debugging",
             "Boards", "Knowledge", "Tasks", "Ideas",
             "Templates", "_trash",
         ],
@@ -245,7 +247,7 @@ PRESETS = {
     "creator": {
         "purpose": "Content calendar, ideas pipeline, audience, publishing",
         "folders": [
-            "Daily", "People", "Content/LinkedIn", "Content/X", "Content/Blog",
+            "Daily", "People", "Companies", "Tools", "Content/LinkedIn", "Content/X", "Content/Blog",
             "Ideas", "Audience", "Publishing",
             "Boards", "Templates", "_trash",
         ],
@@ -256,7 +258,7 @@ PRESETS = {
         "purpose": "Sources, literature, hypotheses, methodology, synthesis",
         "folders": [
             "Daily", "Sources", "Literature", "Hypotheses", "Methodology",
-            "Synthesis", "Reading Queue", "Projects", "People",
+            "Synthesis", "Reading Queue", "Projects", "People", "Companies", "Tools",
             "Boards", "Templates", "_trash",
         ],
         "boards": [Board("Research", ["📚 Reading", "🔬 Processing", "🧬 Synthesized", "✅ Done"])],
@@ -354,6 +356,8 @@ def folder_map_table(folders: list) -> str:
         "Tasks": "Standalone task notes (linked from boards)",
         "Projects": "Active and archived projects",
         "People": "One note per person",
+        "Companies": "Companies I track - clients, vendors, counterparties",
+        "Tools": "Software and services in use",
         "Boards": "Kanban boards",
         "Knowledge": "Reference material",
         "Learning": "Books, courses, content consumed",

@@ -409,3 +409,64 @@ def test_a_root_note_named_like_an_exempt_folder_is_still_checked(tmp_path):
 
     orphans = {i["files"][0] for i in _issues(_health(vault), "orphan")}
     assert "Logs.md" in orphans
+
+
+PLAIN_BODY = "## [2026-01-05] save | an appended entry in a file with no frontmatter\n"
+
+
+def test_system_files_need_no_frontmatter_at_any_depth(tmp_path):
+    """The write-time validator exempts _CLAUDE.md, Home.md, index.md, log.md and
+    catchup.md wherever they sit. The health check exempted only the first two, and
+    only at the root, so a monolithic log.md (plain appended entries) and a nested
+    vault's own _CLAUDE.md (the template has no frontmatter) were reported."""
+    vault = tmp_path / "vault"
+    (vault / "personal").mkdir(parents=True)
+    for rel in ("log.md", "index.md", "catchup.md", "personal/_CLAUDE.md", "personal/log.md"):
+        (vault / rel).write_text(PLAIN_BODY, encoding="utf-8")
+
+    flagged = {i["files"][0] for i in _issues(_health(vault), "no_frontmatter")}
+    assert flagged == set(), flagged
+
+
+def test_a_note_merely_ending_in_a_system_name_still_needs_frontmatter(tmp_path):
+    """Matched on the whole filename: `changelog.md` is a note, not `log.md`."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "changelog.md").write_text(PLAIN_BODY, encoding="utf-8")
+
+    flagged = {i["files"][0] for i in _issues(_health(vault), "no_frontmatter")}
+    assert "changelog.md" in flagged
+
+
+def test_a_title_ending_in_dot_md_is_reached_by_its_link(tmp_path):
+    """A note titled `... _CLAUDE.md` is saved as `... _CLAUDE.md.md`. Its link
+    `[[... _CLAUDE.md]]` resolves (no wanted_note), but the orphan check stripped
+    the `.md` as a redundant extension and then matched nothing, so the note was
+    reported as an orphan. Bare and path-qualified links both reach it."""
+    vault = tmp_path / "vault"
+    (vault / "Decisions").mkdir(parents=True)
+    (vault / "Rename _CLAUDE.md.md").write_text("a decision\n", encoding="utf-8")
+    (vault / "Decisions" / "Adopt README.md.md").write_text("a decision\n", encoding="utf-8")
+    (vault / "Home.md").write_text(
+        "[[Rename _CLAUDE.md]] and [[Decisions/Adopt README.md]]\n", encoding="utf-8"
+    )
+
+    payload = _health(vault)
+    orphans = {i["files"][0] for i in _issues(payload, "orphan")}
+    assert "Rename _CLAUDE.md.md" not in orphans
+    assert "Decisions/Adopt README.md.md" not in orphans
+    assert _issues(payload, "wanted_note") == []
+
+
+def test_a_redundant_md_extension_on_a_link_still_counts(tmp_path):
+    """`[[target.md]]` still reaches `target.md`: keeping the unstripped form must
+    not drop the stripped one."""
+    vault = tmp_path / "vault"
+    (vault / "Projects").mkdir(parents=True)
+    (vault / "target.md").write_text("linked\n", encoding="utf-8")
+    (vault / "Projects" / "deep.md").write_text("linked\n", encoding="utf-8")
+    (vault / "Home.md").write_text("[[target.md]] and [[Projects/deep.md]]\n", encoding="utf-8")
+
+    orphans = {i["files"][0] for i in _issues(_health(vault), "orphan")}
+    assert "target.md" not in orphans
+    assert "Projects/deep.md" not in orphans

@@ -15,18 +15,16 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+from _bash import BASH
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 import osb_env  # noqa: E402  (depends on the sys.path insert above)
-
-BASH = shutil.which("bash") or "/bin/bash"
 
 
 @pytest.fixture(autouse=True)
@@ -148,6 +146,12 @@ def _bash_env_file(env: dict) -> str:
     return r.stdout
 
 
+# Git Bash spells C:/Users/... as /c/Users/...: the same file, a different
+# string. cygpath -m gives the native spelling Python uses; elsewhere it is absent
+# and the path prints as is.
+_PRINT_NATIVE = 'p=$(cygpath -m "$OSB_ENV_FILE" 2>/dev/null) || p="$OSB_ENV_FILE"; printf "%s" "$p"'
+
+
 def test_bash_and_python_resolve_the_same_default_file(monkeypatch):
     """An install writes the vault path with bash; every command reads it back
     with Python. A disagreement is a config that exists and is never found."""
@@ -155,7 +159,7 @@ def test_bash_and_python_resolve_the_same_default_file(monkeypatch):
     env.pop("OBSIDIAN_ENV_FILE", None)
     r = subprocess.run(
         [BASH, "-c",
-         f'. "{REPO_ROOT}/scripts/platform-home.sh"; osb_platform_home; osb_env_file; printf "%s" "$OSB_ENV_FILE"'],
+         f'. "{REPO_ROOT}/scripts/platform-home.sh"; osb_platform_home; osb_env_file; {_PRINT_NATIVE}'],
         capture_output=True, text=True, env=env,
     )
     assert r.returncode == 0, r.stderr
@@ -170,7 +174,7 @@ def test_osb_env_file_resolves_home_itself_when_called_first():
     env.pop("OBSIDIAN_ENV_FILE", None)
     r = subprocess.run(
         [BASH, "-c",
-         f'. "{REPO_ROOT}/scripts/platform-home.sh"; osb_env_file; printf "%s" "$OSB_ENV_FILE"'],
+         f'. "{REPO_ROOT}/scripts/platform-home.sh"; osb_env_file; {_PRINT_NATIVE}'],
         capture_output=True, text=True, env=env, cwd="/",
     )
     assert r.returncode == 0, r.stderr

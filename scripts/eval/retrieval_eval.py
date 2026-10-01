@@ -269,6 +269,7 @@ def _searcher(mode: str):
         # the shipped search without being imported or vendored (pattern from
         # the structured-rag eval fork, fork-insights round 2).
         import os
+        import shutil
         import subprocess
         cmd = os.environ.get("RETRIEVAL_EVAL_EXTERNAL_CMD", "").strip()
         if not cmd:
@@ -281,6 +282,12 @@ def _searcher(mode: str):
             )
 
         parts = _split_external_cmd(cmd)
+        # A bare "bash" resolves through CreateProcess on Windows, which checks
+        # System32 before PATH, so with WSL installed it starts WSL's launcher
+        # and the Windows script path arrives mangled (#308). Resolved here, not
+        # in _split_external_cmd, which only parses argv.
+        if parts and parts[0] == "bash":
+            parts[0] = shutil.which("bash") or "bash"
 
         def _external(q: str) -> list[dict[str, Any]]:
             proc = subprocess.run(

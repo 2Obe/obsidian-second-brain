@@ -649,12 +649,15 @@ def check_orphans(notes: dict) -> list:
     for src_rel, note in notes.items():
         for link in note["links"]:
             lk = _nfc(link).lower()
-            # An incoming link may carry the .md extension ([[note.md]]); it still
-            # targets the same note, so strip it before matching against stems.
+            # An incoming link may carry a redundant .md extension ([[note.md]]),
+            # so register the stripped form. Keep the link as written too: a note
+            # titled `... _CLAUDE.md` is saved as `... _CLAUDE.md.md`, and its stem
+            # keeps the trailing `.md`.
+            keys = {lk}
             if lk.endswith(".md"):
-                lk = lk[:-3]
+                keys.add(lk[:-3])
             target = path_link_sources if "/" in lk else link_sources
-            for key in {lk, lk.replace(" ", "-")}:
+            for key in keys | {k.replace(" ", "-") for k in keys}:
                 target[key].add(src_rel)
 
     def _has_incoming(rel: str, keys) -> bool:
@@ -715,13 +718,21 @@ def check_stale_tasks(notes: dict) -> list:
     return issues
 
 
+# System files that carry no frontmatter by design. The same set, matched by
+# filename at any depth, that hooks/validate-ai-first.sh exempts at write time, so
+# a file the hook lets through is not reported here later.
+_FRONTMATTER_EXEMPT_FILES = frozenset({
+    "_CLAUDE.md", "Home.md", "index.md", "log.md", "catchup.md",
+})
+
+
 def check_missing_frontmatter(notes: dict) -> list:
     issues = []
     skip = {"Templates", "_trash", ".obsidian"}
     for rel, note in notes.items():
         if any(s in rel for s in skip):
             continue
-        if rel in ("Home.md", "_CLAUDE.md"):
+        if rel.rsplit("/", 1)[-1] in _FRONTMATTER_EXEMPT_FILES:
             continue
         if note.get("code_fence_wrapped"):
             # Reported by check_code_fence_wrapped instead. The frontmatter exists but is
@@ -1209,9 +1220,12 @@ def check_source_payload(notes: dict, vault: Path) -> list:
                 continue  # a raw source citing another raw source is not derived knowledge
             for link in note["links"]:
                 lk = _nfc(link).lower()
-                if lk.endswith(".md"):
-                    lk = lk[:-3]
-                for key in {lk, lk.replace(" ", "-"), lk.rsplit("/", 1)[-1]}:
+                # Both forms, as in check_orphans: `... _CLAUDE.md.md` keeps its `.md`.
+                forms = {lk, lk[:-3]} if lk.endswith(".md") else {lk}
+                keys = set()
+                for f in forms:
+                    keys |= {f, f.replace(" ", "-"), f.rsplit("/", 1)[-1]}
+                for key in keys:
                     for target in by_key.get(key, ()):
                         supported[target].add(src_rel)
         for rel in sorted(supported):

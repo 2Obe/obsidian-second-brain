@@ -109,11 +109,12 @@ _SEARCH_DEWEIGHT_FACTOR = float(os.environ.get("OBSIDIAN_SEARCH_DEWEIGHT") or "0
 # Type-aware volume (stress-test fix 13/24): term-dense operational logs took #1
 # on 7 of 12 audit queries, burying canonical notes. Log-ish notes fade to 0.5 -
 # a moderator, not a mute: they lose ties against canon but still win when they
-# are genuinely the best match. Person/entity dossiers get a modest boost.
+# are genuinely the best match. Entity dossiers (person, company, tool) get a
+# modest boost (#302).
 _SEARCH_LOG_WEIGHT = float(os.environ.get("OBSIDIAN_SEARCH_LOG_WEIGHT") or "0.5")
 _SEARCH_ENTITY_BOOST = float(os.environ.get("OBSIDIAN_SEARCH_ENTITY_BOOST") or "1.5")
 _LOG_TYPES = {"log", "dev-log", "daily", "worklog"}
-_ENTITY_TYPES = {"person", "entity"}
+_ENTITY_TYPES = {"person", "company", "tool", "entity"}
 _LOG_FOLDERS = {"logs", "daily", "dev logs"}
 # Freshness (stress-test fix 15/24): a "what is CURRENT" query ranked a
 # superseded/declined note above the one that still holds. Two levers, lexical arm only (the
@@ -835,6 +836,23 @@ def _add_index_entry(vault: Path, rel: str, summary: str) -> str:
     return f"index.md '## {folder}/' entry added"
 
 
+def _split_post_write_cmd(cmd: str, windows: bool = os.name == "nt") -> List[str]:
+    """Split OBSIDIAN_POST_WRITE_CMD into argv. POSIX shlex off Windows. On
+    Windows, POSIX shlex would eat every backslash in a path, and non-POSIX
+    shlex keeps the quote marks, so a quoted "C:\\Program Files\\...\\x.exe"
+    reached subprocess with its quotes and was never found. Split non-POSIX,
+    then drop one layer of matching surrounding quotes per token, the rule
+    scripts/eval/retrieval_eval.py uses for the same job."""
+    if not windows:
+        return shlex.split(cmd)
+    parts = []
+    for token in shlex.split(cmd, posix=False):
+        if len(token) >= 2 and token[0] == token[-1] and token[0] in ("'", '"'):
+            token = token[1:-1]
+        parts.append(token)
+    return parts
+
+
 def _run_post_write(vault: Path, rel: str, action: str) -> Optional[Dict[str, Any]]:
     """Run OBSIDIAN_POST_WRITE_CMD <vault> <note> <action>, bounded, never raising.
     Absent variable: None (the key is omitted). Otherwise a small report."""
@@ -845,7 +863,7 @@ def _run_post_write(vault: Path, rel: str, action: str) -> Optional[Dict[str, An
         timeout = float(os.environ.get(_POST_WRITE_TIMEOUT_ENV) or "45")
     except ValueError:
         timeout = 45.0
-    argv = shlex.split(cmd, posix=(os.name != "nt")) + [str(vault), rel, action]
+    argv = _split_post_write_cmd(cmd) + [str(vault), rel, action]
     try:
         p = subprocess.run(argv, cwd=str(vault), capture_output=True, text=True, timeout=timeout)
     except FileNotFoundError:
