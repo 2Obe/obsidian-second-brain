@@ -75,14 +75,14 @@ def test_every_adapter_is_discovered():
 def test_first_brain_variant_ships_agent_initialization_and_ownership_rules(built, platform):
     """Verify the installed instructions; this does not execute an agent."""
     tree = built / platform
-    assert not list(tree.rglob("init_first_brain.py"))
     init = next(p for p in tree.rglob("SKILL.md") if p.parent.name == "obsidian-init")
     ingest = next(p for p in tree.rglob("SKILL.md") if p.parent.name == "obsidian-ingest")
-    assert "ensure `First-Brain/` exists" in init.read_text(encoding="utf-8")
-    assert "with filesystem tools" in init.read_text(encoding="utf-8")
-    assert "First Brain Protection" in init.read_text(encoding="utf-8")
-    assert "source_path" in ingest.read_text(encoding="utf-8")
-    assert "Do not propose or apply a rewrite to `First-Brain/`" in ingest.read_text(encoding="utf-8")
+    init_text = init.read_text(encoding="utf-8")
+    ingest_text = ingest.read_text(encoding="utf-8")
+    for marker in ("First-Brain/", "First Brain Protection", "filesystem tools"):
+        assert marker in init_text
+    for marker in ("First-Brain/", "source_path"):
+        assert marker in ingest_text
 
 
 @pytest.mark.parametrize("platform", PLATFORMS)

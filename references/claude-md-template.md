@@ -31,7 +31,7 @@ For the optional First-Brain wiki-style variant selected through `/obsidian-init
 - Respect sensitive-content permissions before reading, copying into raw captures, or deriving knowledge. A selected source does not authorize reading other private notes.
 - The AI-first write rule applies to agent-generated knowledge; human originals need not follow it. Raw captures retain the existing verbatim-body exception.
 - Create immutable ingestion captures under the resolved raw-source folder; consolidate knowledge under the resolved wiki destinations. Record conflicts involving human sources in the derived decisions/conflicts folder, without proposing edits to the originals.
-- These rules take precedence over auto-save and propagation defaults. Pass them to every subagent. Retain the existing rewrite approval policy for derived and structural files.
+- Every vault-writing command must honor this First Brain Protection section, including reconciliation, synthesis, health fixes, and background agents. These rules take precedence over auto-save and propagation defaults. Pass them to every subagent. Retain the existing rewrite approval policy for derived and structural files.
 - Protection is instruction-based, not a filesystem sandbox. Search remains vault-wide; initialization does not ingest sources or monitor changes.
 ```
 
