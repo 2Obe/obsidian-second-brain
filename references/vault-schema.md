@@ -79,6 +79,8 @@ Vault/
 - **Infrastructure:** existing configuration and tooling stay at the root. Initialization preserves manual content through its existing review rules. Moving personal folders into First Brain is an explicit user task, never an automatic migration.
 - **Protection:** `_CLAUDE.md` instructions govern agent behavior; this is instruction-based protection, not a hard filesystem sandbox. It does not restrict all retrieval to the wiki or enforce read permissions in search/index tools.
 
+Every vault-writing command must honor the **First Brain Protection** section in `_CLAUDE.md`, including `/obsidian-reconcile`, `/obsidian-synthesize`, `/obsidian-health` fixes, and background agents. Protection applies beyond initialization and ingestion. These other workflows receive the rules through the generated manual; this variant does not add a technical write guard to each command. Pass the same rules to any subagents.
+
 Initialization is performed by the agent following `commands/obsidian-init.md`, using filesystem tools to create missing directories and `references/folder-map.md` to resolve destinations. The command remains the source of truth for initialization, Bases, logging, and preservation of existing manuals; no dedicated initialization script is required for this variant.
 
 ---

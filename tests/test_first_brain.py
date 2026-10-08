@@ -2,7 +2,8 @@
 
 These tests check the agent playbooks and shared specifications, not actual
 filesystem initialization or LLM ingestion. Live acceptance belongs in the
-PR's validation notes.
+PR's validation notes. Prose assertions guard documented obligations and may
+need updating when those instructions are reworded; they are not behavior tests.
 """
 
 from __future__ import annotations
@@ -55,7 +56,6 @@ def test_schema_and_template_distinguish_human_sources_from_agent_outputs():
     for folder in ("First-Brain/", "raw/", "wiki/", "boards/", "Logs/", "Bases/"):
         assert folder in variant
     assert "commands/obsidian-init.md" in variant
-    assert "no dedicated initialization script" in variant
     assert "not a hard filesystem sandbox" in variant
     template = read("references/claude-md-template.md")
     assert "## First Brain Protection" in template
@@ -76,9 +76,16 @@ def test_ingest_retains_hash_approval_provenance_and_source_boundary():
     assert "source_path:" in read("references/ai-first-rules.md")
 
 
-def test_documentation_does_not_require_the_removed_helper():
-    for path in (
-        "commands/obsidian-init.md", "references/vault-schema.md", "SKILL.md",
-        "README.md", "CHANGELOG.md",
+def test_protection_covers_all_vault_writing_commands():
+    schema = read("references/vault-schema.md")
+    paragraph = next(p for p in schema.split("\n\n") if "Every vault-writing command" in p)
+    for marker in (
+        "must honor", "First Brain Protection", "_CLAUDE.md",
+        "/obsidian-reconcile", "/obsidian-synthesize", "/obsidian-health",
+        "background agents", "subagents",
     ):
-        assert "init_first_brain.py" not in read(path)
+        assert marker in paragraph
+    template = read("references/claude-md-template.md")
+    protection = template.split("## First Brain Protection", 1)[1].split("```", 1)[0]
+    assert "Every vault-writing command" in protection
+    assert "must honor" in protection
