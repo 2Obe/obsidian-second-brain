@@ -143,6 +143,7 @@ _ask_emit_core() {
   if [[ -d "$src/scripts" ]]; then
     mkdir -p "$dst/scripts"
     cp -R "$src/scripts/." "$dst/scripts/"
+    copy_vault_ops "$src" "$dst"  # see adapters/lib.sh (#332)
   fi
   [[ -f "$src/pyproject.toml" ]] && cp "$src/pyproject.toml" "$dst/pyproject.toml"
 
