@@ -166,3 +166,18 @@ def test_template_comment_is_not_part_of_the_value(vault):
         "ai-first: true\n---\n\n" + "captured text " * 10, encoding="utf-8")
     _note(vault, "Claim", ["inl"])
     assert [f["files"][0] for f in _findings(vault)] == ["Knowledge/Claim.md"]
+
+
+@pytest.mark.parametrize("line", [
+    'source_quality: "speculation"  # high | medium | speculation',
+    "source_quality: 'speculation'",
+    "source_quality: SPECULATION",
+])
+def test_quoted_value_with_template_comment_is_recognised(vault, line):
+    rel = "raw/articles/q.md"
+    (vault / rel).parent.mkdir(parents=True)
+    (vault / rel).write_text(
+        f"---\ntype: source\n{line}\nai-first: true\n---\n\n" + "captured text " * 10,
+        encoding="utf-8")
+    _note(vault, "Claim", ["q"])
+    assert [f["files"][0] for f in _findings(vault)] == ["Knowledge/Claim.md"]

@@ -1319,8 +1319,10 @@ def check_source_quality(notes: dict, vault: Path) -> list:
     for rel, note in notes.items():
         if _fm_field(note["frontmatter"], "type") != "source":
             continue
-        # A template line copied with its trailing `# high | medium | ...` comment.
-        grade = _fm_field(note["frontmatter"], "source_quality").split("#", 1)[0].strip()
+        # Drop a trailing `# high | medium | ...` template comment first, then the
+        # quotes: stripping quotes first leaves `speculation"` for a quoted value.
+        m = re.search(r"^source_quality:\s*(.+?)\s*$", note["frontmatter"], re.MULTILINE)
+        grade = m.group(1).split("#", 1)[0].strip().strip("\"'").lower() if m else ""
         if grade in SOURCE_QUALITY_VALUES:
             graded[rel] = grade
     speculative = {rel for rel, grade in graded.items() if grade == "speculation"}
