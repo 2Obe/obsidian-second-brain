@@ -340,6 +340,8 @@ cp -R dist/hermes/skills/. ~/.hermes/skills/obsidian-second-brain/
 # Shared specs + Python helpers the skills reference:
 cp -R dist/hermes/references ~/.hermes/skills/obsidian-second-brain/references
 cp -R dist/hermes/scripts    ~/.hermes/skills/obsidian-second-brain/scripts
+cp -R dist/hermes/integrations ~/.hermes/skills/obsidian-second-brain/integrations
+cp dist/hermes/pyproject.toml ~/.hermes/skills/obsidian-second-brain/pyproject.toml
 ```
 
 ## Option B - add as a tap (when published to a skills repo)
