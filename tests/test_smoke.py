@@ -1600,3 +1600,36 @@ def test_validate_hook_skips_claude_memory_dir(tmp_path):
     )
     assert r.returncode == 0, r.stderr
     assert not r.stdout.strip(), r.stdout
+
+
+def test_every_build_ships_vault_ops_beside_scripts(tmp_path):
+    """scripts/ imports vault_ops from integrations/obsidian-mcp-server/ beside
+    it: the research vault scan (vault_terms.topic_terms, used by /research-deep
+    and /notebooklm) and the eval scripts. Builds copied scripts/ without it, so
+    on every platform but a repo checkout those commands died with
+    ModuleNotFoundError (#332). Runs the import from inside each built tree."""
+    subprocess.run(
+        [BASH, "scripts/build.sh"],
+        cwd=REPO_ROOT, capture_output=True, text=True, check=True,
+    )
+
+    probe = (
+        "import sys; sys.path.insert(0, '.')\n"
+        "from scripts.research.lib.vault_terms import topic_terms\n"
+        "assert topic_terms('local search index'), 'no terms'\n"
+        "sys.path.insert(0, 'integrations/obsidian-mcp-server')\n"
+        "import vault_ops; vault_ops.search\n"
+    )
+    roots = sorted(p.parents[3] for p in (REPO_ROOT / "dist").rglob("vault_terms.py"))
+    platforms = {r.relative_to(REPO_ROOT / "dist").parts[0] for r in roots}
+    assert len(platforms) == 8, platforms
+    failures = []
+    for root in roots:
+        r = subprocess.run(
+            [sys.executable, "-c", probe], cwd=root,
+            env=dict(os.environ, OBSIDIAN_VAULT_PATH=str(tmp_path)),
+            capture_output=True, text=True,
+        )
+        if r.returncode != 0:
+            failures.append(f"{root.relative_to(REPO_ROOT)}: {r.stderr.strip().splitlines()[-1]}")
+    assert not failures, "\n".join(failures)
