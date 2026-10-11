@@ -711,6 +711,8 @@ A guided conversation (intent, name, category, trigger phrases, behavior steps, 
 
 **Ingests a source into the vault - one source touches many pages.** Full steps in `commands/obsidian-ingest.md` (the source of truth). Read that file before running an ingest; the summary here is an orientation, not the procedure.
 
+Directories use the same workflow in bounded sequential batches: `/obsidian-ingest Sources/ --preview`, then `/obsidian-ingest Sources/ --batch-size 10`. Supported local text, PDF, audio, and image formats are discovered recursively after exclusions; read permissions are resolved before hashing or extraction. Progress lives in existing operation logs, with completion only after all required approvals and structural updates finish. Repeat the command to continue, use `--retry-failed` for failed/blocked extraction, and `--resume` to explicitly recover a stopped session. Preserve source bytes and paths, resolve overlapping output routes before writing, and pass source protection to every worker. Warm start is `/obsidian-ingest First-Brain/` and requires no separate command. See the command's progress format and recovery rules rather than treating raw-capture existence as completion.
+
 In the First-Brain variant, read the selected local source in place, preserve its bytes and path, and record its vault-relative `source_path` in the raw capture. Derived and ancillary writes follow the manual's routes; conflicts involving human originals are recorded in the derived layer. Sensitive-content rules and the current rewrite policy still apply.
 
 Steps:

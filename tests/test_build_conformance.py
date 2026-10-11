@@ -86,6 +86,24 @@ def test_first_brain_variant_ships_agent_initialization_and_ownership_rules(buil
 
 
 @pytest.mark.parametrize("platform", PLATFORMS)
+def test_directory_ingestion_helper_and_spec_ship(built: Path, platform: str) -> None:
+    tree = built / platform
+    helper = next(tree.rglob("ingest_batch.py"))
+    assert helper.stat().st_size > 0
+    rules = next(tree.rglob("ai-first-rules.md")).read_text(encoding="utf-8")
+    assert "source_file_hash:" in rules
+    # Command bodies are translated; the public flags and script name must survive.
+    ingests = [p for p in tree.rglob("*.md") if p.stem == "obsidian-ingest"
+               or (p.name == "SKILL.md" and p.parent.name == "obsidian-ingest")]
+    assert ingests
+    for path in ingests:
+        text = path.read_text(encoding="utf-8")
+        assert "ingest_batch.py" in text
+        assert "--batch-size" in text
+        assert "ingest-progress" in text
+
+
+@pytest.mark.parametrize("platform", PLATFORMS)
 def test_build_emits_a_non_empty_tree(built: Path, platform: str) -> None:
     """A build that exits 0 with an empty output tree is the failure mode CI
     could not see. Assert content, not just that the directory exists."""

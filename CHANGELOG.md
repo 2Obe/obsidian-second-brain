@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Resumable directory ingestion.** `/obsidian-ingest` accepts mixed collections of text, PDFs, audio, and images in bounded sequential batches. It reuses existing extraction, raw deduplication, routing, and approval rules. A small helper records started, completed, failed, blocked, and pending-approval outcomes in existing operation logs, with original-byte hashes for source versions. First Brain warm start is a directory-ingestion use case; no new command or progress file is introduced.
+
 - **Optional First-Brain wiki-style variant (#330, by @2Obe).** `/obsidian-init` configures a human-maintained source layer and wiki destinations through its existing agent-driven workflow. Individual ingestion preserves originals, records local provenance, and keeps source conflicts in the derived layer. Protection is instruction-based; no bulk ingestion or background synchronization is introduced.
 
 - **German (`de`) trigger phrases for all commands (#299, by @2Obe).** Each command now recognizes natural German requests alongside the existing English, Spanish, Portuguese, and Simplified Chinese phrases.
