@@ -100,7 +100,7 @@ def test_directory_ingestion_helper_and_spec_ship(built: Path, platform: str) ->
         text = path.read_text(encoding="utf-8")
         assert "ingest_batch.py" in text
         assert "--batch-size" in text
-        assert "ingest-progress" in text
+        assert "ingest-complete" in text
 
 
 @pytest.mark.parametrize("platform", PLATFORMS)

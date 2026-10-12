@@ -292,7 +292,7 @@ capture_scope: full-local     # full-local | bounded-local | url-only
 ai-first: true
 ```
 
-`source_file_hash` identifies the original file version, including binary inputs. It is separate from canonical `content_hash`, which identifies the retained text. Directory ingestion records completion and unresolved work in existing operation logs; a raw capture alone does not establish completion. See `commands/obsidian-ingest.md` for the receipt format and recovery procedure.
+`source_file_hash` identifies the original file version, including binary inputs. It is separate from canonical `content_hash`, which identifies the retained text. Directory ingestion records only completed source versions in existing operation logs; unfinished work is retried using retained captures. A raw capture alone does not establish completion. See `commands/obsidian-ingest.md` for the receipt format and recovery procedure.
 
 **`capture_scope` says what the vault actually kept (#194).** A populated `source_url` proves where a claim came from, not that the evidence is still readable: the page can die, or quietly stop saying what the note relied on. The three values are about retention, never about quality:
 
