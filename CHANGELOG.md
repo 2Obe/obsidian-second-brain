@@ -6,7 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-17 - Crew
+
 ### Added
+
+- **Crew: one shared logbook for Claude Code, Codex, Cursor, and Grok Bot, with or without Obsidian (`/crew`).** Each agent starts blind to what the others just did. So you paste the same context into every chat. Crew gives them one plain-markdown log. After every job an agent writes one line (`18:40 | codex | brand | Astra pass, 0 errors`). Before it answers, its own hooks hand it the lines the others added since it last looked. The folder is any plain directory (`~/crew`) or `wiki/team/` inside a vault.
+  - `/crew setup` asks for a folder or a vault, copies the helper to `~/.config/crew/`, and merges read hooks: Claude Code and Codex on `SessionStart` and `UserPromptSubmit`, Cursor on `sessionStart` and `postToolUse` (`additional_context`). It replaces only hook commands it recorded itself and only its own marked rules sections, so a rerun changes nothing. Codex needs one `/hooks` trust review. Grok Bot has no hooks, so setup prints a profile block to paste.
+  - `scripts/crew.py` is one standard-library Python file with `add`, `lesson`, `show`, `digest`, `keep`, `drop`, and `setup`. Python 3.10 or later; no packages, no `uv`.
+  - Agents can leave each other a lesson or name a gap. A lesson stays `open` until a human runs `keep` or `drop`; `keep` writes a marked section into that agent's rules file (`CLAUDE.md`, `AGENTS.md`, a Cursor `crew.mdc` rule, or the Grok Bot profile draft).
+  - Every read starts with a records-not-instructions header, every field is cleaned to one line, and `<`/`>` are escaped so a record cannot forge a marker. Writes take a sidecar lock and replace files atomically. Crew starts no background loop, scheduler, or message sender.
+  - `show --new` keeps a cursor per agent and session and returns the newest 50 unread records, counting the older ones, so a fresh session sees today's work rather than day one.
+  - Hook commands keep the interpreter path the package manager maintains (`/opt/homebrew/opt/python@3.14/...`), not a resolved versioned folder that an upgrade deletes.
+  - Lines written by the 2026-10-16 prototype stay readable. 35 tests cover setup in a throwaway home, real hook payloads, concurrent writes, injected orders, legacy records, and human rule promotion.
 
 - **Sources carry a `source_quality` label, and `/obsidian-health` warns when knowledge cites only `speculation` sources (#258, by @konsone).** A new `source_quality: high | medium | speculation` field on raw sources reuses Rule 7's vocabulary and says whether a source's provenance was worth building on. It sits beside `capture_scope` (#194) and is orthogonal to it: one says how much was kept, this says whether it was worth keeping. `raw/` stays unfiltered and the field never blocks a capture. `references/source-quality-check.md` is the one shared reference and lists the exact signals, so a label can be checked by reading the note. A new `Source quality` health check warns for any note whose every cited source is `speculation`; a source with no field is unjudged and never reported, so a vault written before the field stays silent. `"source_quality_policy": "warn" | "silent"` in `.vault-config.json` follows the never-inferred contract of `rewrite_policy` (#250), with no value that refuses a capture. The `/obsidian-ingest` step 6 and `/obsidian-synthesize` behaviour, and writing the field from the capture commands, follow separately once the field exists. Shared link indexing moved into one helper used by both the payload and quality checks.
 
