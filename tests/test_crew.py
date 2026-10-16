@@ -83,7 +83,7 @@ def test_plain_folder_end_to_end(sandbox):
     assert "Fixed 2 tests" in result and "Finished 1 job" not in result
     digest = run("digest").stdout
     assert "Fixed 2 tests" in digest and "Finished 1 job" in digest
-    assert "type: crew-log" in (folder / f"{date.today()}.md").read_text()
+    assert "type: crew-log" in (folder / f"{date.today()}.md").read_text(encoding="utf-8")
 
 
 def test_orders_are_quoted_records_and_json_is_valid(sandbox):
@@ -190,7 +190,7 @@ def test_only_keep_promotes_a_lesson(sandbox, agent, path):
     assert "Check the empty input" in run("show", "--agent", agent, "--new").stdout
     assert not (home / path).exists()
     output = run("keep", ident).stdout
-    rules = (home / path).read_text()
+    rules = (home / path).read_text(encoding="utf-8")
     assert "Check the empty input" in rules
     if agent == "cursor":
         assert "alwaysApply: true" in rules
@@ -208,8 +208,8 @@ def test_drop_does_not_promote_or_erase_evidence(sandbox):
     run("drop", ident)
     run("drop", ident)
     assert not (home / ".codex/AGENTS.md").exists()
-    assert "dropped" in (folder / "lessons.md").read_text()
-    assert "tests/test_app.py" in (folder / "lessons.md").read_text()
+    assert "dropped" in (folder / "lessons.md").read_text(encoding="utf-8")
+    assert "tests/test_app.py" in (folder / "lessons.md").read_text(encoding="utf-8")
     run("keep", ident, ok=False)
     run("keep", "L999", ok=False)
 
@@ -227,11 +227,11 @@ def test_legacy_logs_and_lessons_stay_readable(sandbox):
     assert "pass, 0 errors" in run("show", "--agent", "claude").stdout
     assert "Check input" in run("show", "--agent", "codex", "--new").stdout
     assert lesson() == "L9"
-    assert (folder / "lessons.md").read_text().startswith(legacy)
+    assert (folder / "lessons.md").read_text(encoding="utf-8").startswith(legacy)
     run("keep", "L7")
-    assert "Check input" in (sandbox[0] / ".codex/AGENTS.md").read_text()
-    assert "- L8 | kept" in (folder / "lessons.md").read_text()
-    assert (folder / "2026-10-16.md").read_text() == log
+    assert "Check input" in (sandbox[0] / ".codex/AGENTS.md").read_text(encoding="utf-8")
+    assert "- L8 | kept" in (folder / "lessons.md").read_text(encoding="utf-8")
+    assert (folder / "2026-10-16.md").read_text(encoding="utf-8") == log
 
 
 def test_setup_merges_and_second_run_changes_nothing(sandbox):
@@ -257,10 +257,10 @@ def test_setup_merges_and_second_run_changes_nothing(sandbox):
     )
     output = run("--dir", str(folder), "setup").stdout
     assert "/hooks" in output and "Grok Bot has no hooks" in output
-    assert "old-teamlog.py show" in path.read_text()
-    assert json.loads(path.read_text())["env"] == existing["env"]
-    assert (home / ".claude/CLAUDE.md").read_text().startswith("My existing rules.\n")
-    cursor = json.loads((home / ".cursor/hooks.json").read_text())
+    assert "old-teamlog.py show" in path.read_text(encoding="utf-8")
+    assert json.loads(path.read_text(encoding="utf-8"))["env"] == existing["env"]
+    assert (home / ".claude/CLAUDE.md").read_text(encoding="utf-8").startswith("My existing rules.\n")
+    cursor = json.loads((home / ".cursor/hooks.json").read_text(encoding="utf-8"))
     assert cursor["hooks"]["beforeSubmitPrompt"] == [{"command": "my-validator"}]
     assert "sessionStart" in cursor["hooks"] and "postToolUse" in cursor["hooks"]
     before = snapshot(home)
@@ -280,7 +280,7 @@ def test_real_installed_hook_commands(sandbox, agent, events):
     home, folder = sandbox
     run("--dir", str(folder), "setup", "--agents", agent)
     config_path = home / f".{agent}" / ("settings.json" if agent == "claude" else "hooks.json")
-    config = json.loads(config_path.read_text())
+    config = json.loads(config_path.read_text(encoding="utf-8"))
     for n, event in enumerate(events):
         add("grokbot", f"Hook job {n}")
         entry = config["hooks"][event][0]
@@ -290,7 +290,7 @@ def test_real_installed_hook_commands(sandbox, agent, events):
             shell=True,
             input=json.dumps({"hook_event_name": event, "session_id": "session-a"}),
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
         )
         assert result.returncode == 0, result.stderr
         output = json.loads(result.stdout)
@@ -310,7 +310,7 @@ def test_setup_relocation_replaces_only_owned_hooks(sandbox):
     run("--dir", str(folder), "setup", "--agents", "codex")
     new_folder = folder.parent / "new crew"
     run("--dir", str(new_folder), "setup", "--agents", "codex")
-    data = json.loads((home / ".codex/hooks.json").read_text())
+    data = json.loads((home / ".codex/hooks.json").read_text(encoding="utf-8"))
     assert len(data["hooks"]["SessionStart"]) == 1
     assert str(new_folder) in data["hooks"]["SessionStart"][0]["hooks"][0]["command"]
 
@@ -321,12 +321,12 @@ def test_setup_invalid_config_writes_no_rules(sandbox):
     path = home / ".codex/hooks.json"
     path.write_text("{broken")
     run("--dir", str(folder), "setup", "--agents", "claude", "codex", ok=False)
-    assert path.read_text() == "{broken"
+    assert path.read_text(encoding="utf-8") == "{broken"
     assert not (home / ".claude/CLAUDE.md").exists()
     invalid_folder = folder.parent / "file-not-folder"
     invalid_folder.write_text("Keep this file")
     run("--dir", str(invalid_folder), "setup", "--agents", "claude", ok=False)
-    assert invalid_folder.read_text() == "Keep this file"
+    assert invalid_folder.read_text(encoding="utf-8") == "Keep this file"
     assert not (home / ".claude/settings.json").exists()
 
 
@@ -336,7 +336,7 @@ def test_broken_markers_leave_existing_rules_intact(sandbox):
     path = home / ".claude/CLAUDE.md"
     path.write_text("My rules\n<!-- CREW-TEAM begin -->\n")
     run("--dir", str(folder), "setup", "--agents", "claude", ok=False)
-    assert path.read_text() == "My rules\n<!-- CREW-TEAM begin -->\n"
+    assert path.read_text(encoding="utf-8") == "My rules\n<!-- CREW-TEAM begin -->\n"
 
 
 def test_vault_and_config_directory_resolution(sandbox, monkeypatch):
@@ -380,7 +380,7 @@ def test_symlink_records_are_rejected(sandbox):
     except OSError:
         pytest.skip("symlinks unavailable on this host")
     run("add", "--agent", "claude", "--area", "side", "--did", "1 job", "--where", "x", ok=False)
-    assert target.read_text() == "Private rules\n"
+    assert target.read_text(encoding="utf-8") == "Private rules\n"
 
 
 def test_setup_preserves_kept_lessons_and_existing_cursor_rule(sandbox):
@@ -389,13 +389,13 @@ def test_setup_preserves_kept_lessons_and_existing_cursor_rule(sandbox):
     path.parent.mkdir(parents=True)
     path.write_text('---\ndescription: "My rule"\nalwaysApply: false\n---\nCustom rule.\n')
     run("--dir", str(folder), "setup", "--agents", "cursor")
-    assert "alwaysApply: true" in path.read_text()
-    assert "Custom rule." in path.read_text()
+    assert "alwaysApply: true" in path.read_text(encoding="utf-8")
+    assert "Custom rule." in path.read_text(encoding="utf-8")
     ident = lesson(target="cursor")
     run("keep", ident)
-    before = path.read_text()
+    before = path.read_text(encoding="utf-8")
     run("--dir", str(folder), "setup", "--agents", "cursor")
-    assert path.read_text() == before
+    assert path.read_text(encoding="utf-8") == before
 
 
 def test_all_recipients_and_changed_status_reach_readers(sandbox):
@@ -410,7 +410,7 @@ def test_all_recipients_and_changed_status_reach_readers(sandbox):
         ".cursor/rules/crew.mdc",
         ".config/crew/grok-profile.md",
     ):
-        assert "Check the empty input" in (home / path).read_text()
+        assert "Check the empty input" in (home / path).read_text(encoding="utf-8")
 
 
 def test_hook_shell_quotes_folder_paths(sandbox):
@@ -430,14 +430,14 @@ def test_hook_shell_quotes_folder_paths(sandbox):
         "--where",
         "src/app.py",
     )
-    config = json.loads((home / ".codex/hooks.json").read_text())
+    config = json.loads((home / ".codex/hooks.json").read_text(encoding="utf-8"))
     command = config["hooks"]["SessionStart"][0]["hooks"][0]["command"]
     result = subprocess.run(
         command,
         shell=True,
         input=json.dumps({"hook_event_name": "SessionStart"}),
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     assert result.returncode == 0, result.stderr
     assert "Recorded 1 quoted path" in result.stdout
@@ -460,11 +460,11 @@ def test_built_crew_runs_from_an_unrelated_folder(sandbox, platform, script_path
     result = subprocess.run(
         [BASH, str(REPO / "scripts/build.sh"), "--platform", platform],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
     )
     assert result.returncode == 0, result.stderr
     build = REPO / "dist" / platform
-    command = (build / command_path).read_text()
+    command = (build / command_path).read_text(encoding="utf-8")
     assert "Crew works without Obsidian" in command or "one logbook without Obsidian" in command
     if platform == "grok-bot":
         assert "All vault operations go through" not in command
@@ -514,11 +514,32 @@ def test_hook_without_event_name_prints_plain_records(tmp_path):
     subprocess.run(
         [*base, "add", "--agent", "claude", "--area", "side",
          "--did", "Wrote 2 notes", "--where", "x.md"],
-        check=True, capture_output=True, text=True,
+        check=True, capture_output=True, text=True, encoding="utf-8",
     )
     shown = subprocess.run(
         [*base, "show", "--agent", "codex", "--new", "--hook"],
-        input=json.dumps({"session_id": "s1"}), check=True, capture_output=True, text=True,
+        input=json.dumps({"session_id": "s1"}), check=True, capture_output=True, text=True, encoding="utf-8",
     )
     assert shown.stdout.startswith("CREW LOG:")
     assert "Wrote 2 notes" in shown.stdout
+
+
+def test_hook_handles_non_ascii_records_and_prompts(tmp_path):
+    """Windows defaults to a legacy code page; hosts send and expect UTF-8."""
+    script = Path(__file__).resolve().parents[1] / "scripts" / "crew.py"
+    folder = tmp_path / "crew"
+    base = [sys.executable, str(script), "--dir", str(folder)]
+    subprocess.run(
+        [*base, "add", "--agent", "grokbot", "--area", "team",
+         "--did", "save window 14:48\u219217:45, \u8bbe\u7f6e Crew", "--where", "box"],
+        check=True, capture_output=True,
+    )
+    payload = {"hook_event_name": "UserPromptSubmit", "session_id": "s1",
+               "prompt": "\u0447\u0442\u043e \u0441\u0434\u0435\u043b\u0430\u043b Codex?"}
+    shown = subprocess.run(
+        [*base, "show", "--agent", "claude", "--new", "--hook"],
+        input=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        check=True, capture_output=True,
+    )
+    out = json.loads(shown.stdout.decode("utf-8"))
+    assert "14:48\u219217:45" in out["hookSpecificOutput"]["additionalContext"]

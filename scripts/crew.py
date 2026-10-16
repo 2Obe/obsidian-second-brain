@@ -566,6 +566,11 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Hosts exchange UTF-8. Windows defaults to a legacy code page, which cannot
+    # print a record such as "14:48 -> 17:45" written with an arrow, or decode a prompt.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     args = parser().parse_args(argv)
     try:
         if args.command == "setup" and args.vault and args.dir:
@@ -606,7 +611,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("--limit must be positive")
             event = None
             if args.hook:
-                payload = json.load(sys.stdin)
+                payload = json.loads(sys.stdin.buffer.read().decode("utf-8", "replace") or "{}")
                 if not isinstance(payload, dict):
                     raise ValueError("Hook input must be a JSON object")
                 event = payload.get("hook_event_name")
