@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/eugeniughelbur/obsidian-second-brain">
-    <img src="media/banner.png" alt="obsidian-second-brain: one brain, eight platforms, 48 commands. A cross-platform skill for Obsidian that runs on Claude Code, Codex, Gemini, OpenCode, Antigravity, Hermes, Pi, and Grok Bot." width="100%" />
+    <img src="media/banner.png" alt="obsidian-second-brain: your vault, alive. 8 agents, 48 commands, free and open source. Runs on Claude Code, Codex, Gemini, OpenCode, Antigravity, Hermes, Pi, and Grok Bot, plus Crew: one logbook for Claude Code, Codex, Cursor, and Grok Bot." width="100%" />
   </a>
 </p>
 
