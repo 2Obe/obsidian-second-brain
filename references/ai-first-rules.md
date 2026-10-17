@@ -289,6 +289,7 @@ source_file_hash: ""          # optional: full SHA-256 of original file bytes fo
 source_type: article
 content_hash: ""
 capture_scope: full-local     # full-local | bounded-local | url-only
+source_quality: medium        # high | medium | speculation
 ai-first: true
 ```
 
@@ -304,6 +305,14 @@ Never resolve a durability worry by copying a complete copyrighted work. `bounde
 
 A vault that has decided a locator is not a source sets `"source_policy": "strict-local"` in `.vault-config.json`, which raises those health findings by one severity. It quarantines nothing and deletes nothing - an incomplete source is still a record.
 
+**`source_quality` says whether the source's provenance is worth building on (#258).** It is orthogonal to `capture_scope`: that field says how much was kept, this one says whether it was worth keeping. It reuses Rule 7's vocabulary and is a label, never a gate on `raw/`:
+
+- `high` - an institutional primary document with an owner and a stable identifier, or a scoped local primary record. Out of reach without a check that ran.
+- `medium` - provenance is traceable from signals capture already had: a named author or channel, a publication date, a stable URL, a repository owner.
+- `speculation` - the floor. Provenance unknown, derived (a summary of a summary) or conflicting. An uninvestigated source is `speculation`, which is the honest default and not an error state.
+
+The exact signals, and the rule that makes a label checkable by reading the note, are in `references/source-quality-check.md`. The field says nothing about whether the claims are true. `/obsidian-health` warns when a note cites only `speculation` sources; `"source_quality_policy": "silent"` in `.vault-config.json` mutes that, and no value blocks a capture.
+
 ## Documented exceptions
 
 Where the full rule is deliberately relaxed. A documented exception is law; an undocumented one is rot - anything not listed here follows the full rule.
@@ -313,6 +322,32 @@ Where the full rule is deliberately relaxed. A documented exception is law; an u
 - **Raw-source exception** (`raw/`): see `type: source` above - frontmatter yes, preamble no, body verbatim.
 - **Vault-surface exception**: root operating files (`_CLAUDE.md`, `Home.md`, `index.md`, `log.md`, `catchup.md`) and per-day operation logs (`Logs/YYYY-MM-DD.md`) are navigation/manual/append surfaces, not knowledge notes - exempt from the preamble and rich-frontmatter rules. The validate hook skips them accordingly.
 - **Redirect exception** (`/obsidian-merge`, #220): when two near-duplicate notes are merged, the retired note is never deleted (`references/write-rules.md` - the vault is a permanent record) but its content is replaced with a short pointer at the surviving note. No `## For future agent` preamble, no wikilinks-everywhere, no sources - the note's only remaining job is to keep old links resolving and tell future agent the merge happened. See the schema below.
+
+### `type: crew-log`
+
+Crew's daily job log uses this schema in plain folders and vaults:
+
+```yaml
+type: crew-log
+date: YYYY-MM-DD
+tags: [crew]
+ai-first: true
+confidence: stated
+```
+
+Include a `## For future agent` preamble and one record per line:
+`- HH:MM | agent | area | outcome | evidence`.
+Use existing wikilinks when naming vault entities; preserve source URLs in evidence.
+
+### `type: crew-lessons`
+
+Use the same fields as `crew-log`, with `type: crew-lessons` and the file's creation date.
+Each row holds ID, date, author, recipient, kind, status, text, and evidence.
+Status starts `open`. Only a human keep or drop decision changes it to `kept` or `dropped`.
+
+Crew files are append-oriented operational records. They do not create entity stubs or trigger daily-note, index, and operation-log propagation.
+The folder can live outside a vault, and jobs already provide their own dated audit trail.
+Existing prototype files retain their original frontmatter and preambles.
 
 ### `type: redirect`
 Written by `/obsidian-merge` in place of a note retired into a merge. The surviving ("canonical") note keeps its own path and absorbs the content; this note keeps ITS path too (so wikilinks pointing at it still resolve) but its body is replaced entirely.
