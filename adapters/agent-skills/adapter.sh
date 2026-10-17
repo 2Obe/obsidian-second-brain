@@ -87,7 +87,8 @@ _ask_emit_skills() {
       echo "  category: $category"
       echo "---"
       echo
-      _ask_preamble
+      # Crew can run without a vault; its command owns setup and discovery.
+      [[ "$name" == "crew" ]] || _ask_preamble
       command_body "$f"
       echo
       echo "---"

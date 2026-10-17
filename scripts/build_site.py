@@ -216,17 +216,15 @@ def build(out: Path, cmds: list[dict]) -> dict[str, str]:
         ".nojekyll": "",
         # Title and description are written in the words people actually search
         # with ("persistent memory", "across sessions"), not the words the project
-        # uses for itself ("cross-CLI skill", "46 commands"). Repos with a fraction
+        # uses for itself ("cross-CLI skill", "48 commands"). Repos with a fraction
         # of the stars outrank this one on those queries purely by saying the
         # problem out loud. Same claims either way; only the ordering changed.
         "index.html": page(
             "AI second brain for Obsidian - persistent memory for "
-            "Claude Code and Grok Bot",
-            "Persistent memory for Claude Code, Grok Bot, and 6 other agents - stored "
-            "as plain markdown in your Obsidian vault. Stop "
-            "re-explaining your projects, decisions and people every session. 46 "
-            "commands with triggers in English, Spanish, Portuguese "
-            "and Simplified Chinese.",
+            "Claude Code, Codex and Grok Bot",
+            "Persistent memory for Claude Code, Codex, Grok Bot and other agents, stored "
+            "as plain markdown in your Obsidian vault. Crew adds one shared logbook, so "
+            f"your agents know what each other did. {len(cmds)} commands.",
             render_index(cmds),
         ),
     }

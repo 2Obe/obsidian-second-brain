@@ -29,6 +29,7 @@ NOT_OURS = {
     # Other platforms', named while describing their builds.
     "/connect",   # OpenCode's authentication command
     "/skills",    # Codex's skill listing
+    "/hooks",     # Codex's native hook trust review
 }
 
 # Scheduled agents, documented under "### `obsidian-<name>`" in SKILL.md. They run on
