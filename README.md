@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/eugeniughelbur/obsidian-second-brain">
-    <img src="media/banner.png" alt="obsidian-second-brain: one brain, eight platforms, 47 commands. A cross-platform skill for Obsidian that runs on Claude Code, Codex, Gemini, OpenCode, Antigravity, Hermes, Pi, and Grok Bot." width="100%" />
+    <img src="media/banner.png" alt="obsidian-second-brain: one brain, eight platforms, 48 commands. A cross-platform skill for Obsidian that runs on Claude Code, Codex, Gemini, OpenCode, Antigravity, Hermes, Pi, and Grok Bot." width="100%" />
   </a>
 </p>
 
@@ -26,7 +26,32 @@
   <a href="https://github.com/sponsors/eugeniughelbur"><img src="https://img.shields.io/badge/Sponsor-EA4AAA?style=for-the-badge&logo=github-sponsors&logoColor=white" alt="Sponsor" /></a>
 </p>
 
-<h1 align="center">obsidian-second-brain: AI second brain for Obsidian - persistent memory for Claude Code and Grok Bot</h1>
+<h1 align="center">obsidian-second-brain: AI second brain for Obsidian - persistent memory for Claude Code, Codex, Cursor and Grok Bot</h1>
+
+## Crew: one logbook for all your agents
+
+**Crew works without Obsidian.** Claude Code, Codex, Cursor, and Grok Bot share job records in any plain folder.
+Each agent sees what the others finished and can leave a lesson for review.
+
+<p align="center"><img src="media/crew-demo.gif" alt="Crew demo: a new Claude Code session shows the team log on its own and answers what Codex did at 18:40" width="640" /></p>
+
+- Grok Bot joins the same team through its existing runner.
+- A lesson becomes a rule only when a human runs `keep`.
+- Crew runs no background loop.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/eugeniughelbur/obsidian-second-brain/main/scripts/quick-install.sh | bash
+```
+
+Restart Claude Code, then type `/crew setup`. Pick `~/crew` or `wiki/team/` inside your Obsidian vault.
+Codex users run `/hooks` once to trust Crew's hooks. Setup prints a Grok Bot profile block to paste.
+
+```text
+18:40 | codex | brand | Astra pass, 0 errors
+```
+
+[Setup, exact commands, and limits](references/crew.md). Python 3.10 or later; no extra packages for Crew.
+Shared agent memory isn't new. What Crew adds is the three parts above.
 
 <p align="center">
   <strong>An evolution of <a href="https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f">Karpathy's LLM Wiki pattern</a>: a vault that rewrites itself.</strong>
@@ -48,7 +73,7 @@
   <a href="#install"><strong>Install &rarr;</strong></a> &middot;
   <a href="DEMOS.md">Demos</a> &middot;
   <a href="#what-happens-when-you-install-this">See it in action</a> &middot;
-  <a href="#45-commands">All commands</a> &middot;
+  <a href="#48-commands">All commands</a> &middot;
   <a href="#choose-your-preset">Presets</a> &middot;
   <a href="#the-vault-is-alive">OKM</a> &middot;
   <a href="https://github.com/eugeniughelbur/obsidian-second-brain/discussions">Discussions</a>
@@ -65,8 +90,8 @@
 </p>
 
 <p align="center">
-  <strong>v0.15 - The Port (September 2026):</strong> the plugin now runs on Windows the way it runs on macOS and Linux, fixed end to end by a contributor across two PRs.<br/>
-  <em>Windows paths, CRLF and BOM notes, UTF-8 everywhere, a USERPROFILE-aware config home; plus Gemini-first /podcast with a free Whisper fallback, tag syntax and taxonomy checks, Simplified Chinese triggers, /obsidian-reindex, an Obsidian lint plugin, platform ownership, AI-FIRST.md, a reproducible retrieval benchmark, a generated docs site, typed edges, and the callout preamble. 763-test CI wall.</em>
+  <strong>v0.18 - Crew (October 2026):</strong> Claude Code, Codex, Cursor and Grok Bot now share one logbook, so each agent knows what the others did.<br/>
+  <em>One line per job in any plain folder or your vault, read through each agent's own hooks; lessons agents leave each other become rules only when you keep them; no background loop. Plus source quality labels and German triggers from contributors.</em>
   <a href="CHANGELOG.md">See the changelog &rarr;</a>
 </p>
 
@@ -237,7 +262,7 @@ Free transcript via youtube-transcript-api. Optional metadata + top comments via
 ```
   +------------------------------------------+
   |                                          |
-  |   LAYER 1: Operations (30 commands)      |
+  |   LAYER 1: Operations (31 commands)      |
   |   Claude remembers everything            |
   |                                          |
   +------------------------------------------+
@@ -264,7 +289,7 @@ Free transcript via youtube-transcript-api. Optional metadata + top comments via
   +------------------------------------------+
 ```
 
-47 commands total. The calendar command (`/obsidian-calendar`) is Claude Code only (needs the Google Calendar MCP), so the Codex / Gemini / OpenCode / Hermes / Pi / Agent Skills builds ship 46.
+48 commands total. The calendar command (`/obsidian-calendar`) is Claude Code only (needs the Google Calendar MCP), so the Codex / Gemini / OpenCode / Hermes / Pi / Agent Skills builds ship 47.
 
 **Layer 1** saves, organizes, ingests, reconciles, exports, schedules your calendar, and maintains your vault.
 **Layer 2** challenges your ideas, surfaces hidden patterns, bridges unrelated domains, and graduates ideas into projects.
@@ -274,7 +299,7 @@ Free transcript via youtube-transcript-api. Optional metadata + top comments via
 
 ---
 
-## 47 Commands
+## 48 Commands
 
 ### Operations -- Claude remembers
 
@@ -309,6 +334,7 @@ Free transcript via youtube-transcript-api. Optional metadata + top comments via
 | `/obsidian-learn` | Reviews vault learnings, prunes stale ones, surfaces patterns to promote into rules |
 | `/obsidian-init` | Generates `_CLAUDE.md`, `index.md`, `log.md` |
 | `/obsidian-architect` | Scans a codebase and writes maintained architecture notes (overview, modules, decisions) into the vault; re-run to refresh |
+| `/crew setup` | Shared job log and lessons with a human keep decision; works without Obsidian |
 | `/create-command` | Interview flow that scaffolds a new command into `commands/<name>.md`, no markdown editing |
 
 ### Thinking -- Claude thinks with you
@@ -634,6 +660,16 @@ Rather than ask you to take that on faith, here is what each build currently pas
 
 **Prerequisites:** [Claude Code](https://claude.com/claude-code) (or one of the other six platforms below), `git`, and [`uv`](https://docs.astral.sh/uv/) for the Python helpers (health check, research toolkit, bootstrap). `jq` is **required for the classic script install** - `scripts/setup.sh` uses it to edit `~/.claude/settings.json` safely and exits if it is missing. Not needed on the plugin path. Optional: [Ollama](https://ollama.com) for local semantic search, `openai-whisper` (installed on first audio ingest, pulls in PyTorch). No API keys needed for the core vault commands.
 
+### Crew only (no vault)
+
+Want the shared logbook without Obsidian? Run the quick install above, restart Claude Code, and type `/crew setup`. Pick a plain folder such as `~/crew`. Or run the helper directly:
+
+```bash
+python3 ~/.claude/skills/obsidian-second-brain/scripts/crew.py --dir ~/crew setup
+```
+
+Codex users then run `/hooks` once to trust the hooks. Restart Cursor after setup. Full guide: [references/crew.md](references/crew.md).
+
 ### Claude Code (default)
 
 **Native plugin install (recommended).** Inside any Claude Code session:
@@ -645,13 +681,13 @@ Rather than ask you to take that on faith, here is what each build currently pas
 
 <img src="media/plugin-install.gif" alt="Installing obsidian-second-brain through the Claude Code plugin marketplace: marketplace add, plugin install, status enabled." width="100%" />
 
-That ships all 47 commands, the skill manual, the session-context hook, the opt-in background agent (inert until you arm it - see [hooks/postcompact.hook.example.json](hooks/postcompact.hook.example.json)), and the vault MCP server. Then tell Claude where your vault lives by adding to the `env` section of `~/.claude/settings.json`:
+That ships all 48 commands, the skill manual, the session-context hook, the opt-in background agent (inert until you arm it - see [hooks/postcompact.hook.example.json](hooks/postcompact.hook.example.json)), and the vault MCP server. Then tell Claude where your vault lives by adding to the `env` section of `~/.claude/settings.json`:
 
 ```json
 "env": { "OBSIDIAN_VAULT_PATH": "/path/to/your/vault" }
 ```
 
-Restart Claude Code, then run `/obsidian-second-brain:obsidian-init` inside your vault. Plugin commands are namespaced, so every command is `/obsidian-second-brain:<name>` (type `/obsidian-second-brain:` to see all 47). Update later with `/plugin update obsidian-second-brain`.
+Restart Claude Code, then run `/obsidian-second-brain:obsidian-init` inside your vault. Plugin commands are namespaced, so every command is `/obsidian-second-brain:<name>` (type `/obsidian-second-brain:` to see all 48). Update later with `/plugin update obsidian-second-brain`.
 
 **Classic install (script).** Use this if you want the commands as bare names (`/obsidian-init`, `/research`, ...) or you are developing the skill and want live edits. One line (clones the skill, installs the slash commands, registers the session-context hook, and offers the research env):
 
@@ -838,6 +874,18 @@ Knobs: `OBSIDIAN_SEARCH_SEMANTIC=0` disables the layer entirely. `OBSIDIAN_EMBED
 ---
 
 ## FAQ
+
+### Codex vs Claude Code: do I have to pick one?
+No. Crew lets Claude Code, Codex and Cursor work as one team. After every job, each agent writes one line to a shared logbook, and the others read it before they answer. Run `/crew setup` once. See [Crew](#crew-one-logbook-for-all-your-agents).
+
+### How do Claude Code, Codex and Cursor share memory?
+Through Crew's logbook: plain markdown files in `~/crew` or in `wiki/team/` inside your vault. Claude Code and Codex read new lines through their `SessionStart` and `UserPromptSubmit` hooks. Cursor reads through `sessionStart` and `postToolUse`. Grok Bot reads the same folder from its profile instructions.
+
+### Does Crew need Obsidian?
+No. Crew is one standard-library Python file and a folder of markdown files. Point it at `~/crew` and it never touches a vault. Pick a vault only if you want the log next to your notes.
+
+### Can a log line give my agent orders?
+Every read starts with a header that says the lines are records, not instructions, and each field is cleaned to one line. That framing helps a model separate data from orders; it can't guarantee it. Crew runs no background loop, so nothing acts on a line by itself. A lesson changes an agent's rules only after you run `keep`.
 
 ### What is a Claude Code skill?
 A Claude Code skill is a reusable behavior package for Anthropic's Claude Code CLI. It bundles slash commands, scripts, references, and operating instructions that Claude loads automatically. Skills give Claude domain expertise without prompt-engineering each session.
