@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **`move_note` could swap the contents of two notes in a cloud-synced vault (#324, reported by @jeonpapa, by @tonydzi).** The MCP `move_note` created the destination with `os.link(src, dst)` and then unlinked the source, so for a moment both paths were one file. OneDrive, Dropbox and iCloud track files by identity, and on OneDrive a sync pass in that window left the moved note and an existing note with a similar name in the destination folder holding each other's contents, while the move reported success. The destination is now a new file created with `os.open(dst, O_CREAT | O_EXCL | O_WRONLY)`, so "never overwrite an existing destination" stays one atomic syscall with no TOCTOU window. The bytes are written, fsynced and read back before the source is removed, and the source's mode and timestamps are copied over. A failed write removes the half-made destination and leaves the source untouched. A test in `tests/test_mcp_codex_parity.py` checks the two inodes at the moment the source is removed and fails on the previous `main`; the destination-race test now races the `O_EXCL` create instead of the hard link.
+
 ## [0.18.0] - 2026-10-17 - Crew
 
 ### Added

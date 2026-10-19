@@ -15,6 +15,7 @@ import math
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import unicodedata
@@ -1082,16 +1083,37 @@ def move_note(source: str, destination: str) -> Dict[str, Any]:
         return {"error": f"destination already exists: {destination}"}
     dst.parent.mkdir(parents=True, exist_ok=True)
     # A preflight exists() check followed by os.replace() has a race: another
-    # writer can create the destination between them and be overwritten. A hard
-    # link is exclusive at the filesystem boundary; unlinking the source then
-    # completes the move. If unlinking fails, both copies remain (safe) rather
-    # than either note being lost.
+    # writer can create the destination between them and be overwritten. So the
+    # destination is created with O_CREAT | O_EXCL, which fails if it exists in
+    # the same syscall. It is a new file, never a hard link to the source: cloud
+    # sync clients (OneDrive, Dropbox, iCloud) track files by identity, and on
+    # OneDrive a brief shared inode left two notes with swapped contents (#324). The
+    # source is removed only after the copy reads back byte for byte; if that
+    # removal fails, both copies remain rather than either note being lost.
+    data = src.read_bytes()
     try:
-        os.link(src, dst)
+        fd = os.open(str(dst), os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0))
     except FileExistsError:
         return {"error": f"destination already exists: {destination}"}
     except OSError as exc:
         return {"error": f"could not create destination safely: {exc}"}
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        if dst.read_bytes() != data:
+            raise OSError("destination did not read back identical to the source")
+    except OSError as exc:
+        try:
+            dst.unlink()
+        except OSError:
+            pass
+        return {"error": f"could not create destination safely: {exc}"}
+    try:
+        shutil.copystat(src, dst)
+    except OSError:
+        pass
     try:
         src.unlink()
     except OSError as exc:

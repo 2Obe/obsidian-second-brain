@@ -182,13 +182,52 @@ def test_move_note_does_not_overwrite_on_a_destination_race(vault, monkeypatch):
     (root / "Inbox").mkdir()
     src = root / "Inbox" / "capture.md"
     src.write_text("precious source\n", encoding="utf-8")
+    dst = root / "wiki/entities/Contact.md"
+    real_open = ops.os.open
 
-    def raced_link(_source, destination):
-        Path(destination).write_text("other writer\n", encoding="utf-8")
-        raise FileExistsError
+    def raced_open(path, flags, *args):
+        # Another writer creates the destination after the exists() preflight
+        # and before move_note's own create.
+        if Path(path) == dst and flags & ops.os.O_EXCL:
+            dst.write_text("other writer\n", encoding="utf-8")
+        return real_open(path, flags, *args)
 
-    monkeypatch.setattr(ops.os, "link", raced_link)
+    monkeypatch.setattr(ops.os, "open", raced_open)
     result = ops.move_note("Inbox/capture.md", "wiki/entities/Contact.md")
     assert result.get("error")
     assert src.read_text(encoding="utf-8") == "precious source\n"
-    assert (root / "wiki/entities/Contact.md").read_text(encoding="utf-8") == "other writer\n"
+    assert dst.read_text(encoding="utf-8") == "other writer\n"
+
+
+def test_move_note_never_puts_source_and_destination_on_one_inode(vault, monkeypatch):
+    """#324: a hard link made source and destination one file for a moment.
+
+    Cloud sync clients (OneDrive, Dropbox, iCloud) track files by identity; on
+    OneDrive that window left two notes with swapped contents. No sync client
+    runs here, so this pins the mechanism: the destination must have its own
+    inode before the source is removed.
+    """
+    root, ops = vault
+    (root / "Inbox").mkdir()
+    src = root / "Inbox" / "capture.md"
+    body = b"---\r\ntype: note\r\n---\r\n\xef\xbb\xbf caf\xc3\xa9\r\n"
+    src.write_bytes(body)
+    dst = root / "wiki/entities/Contact.md"
+    seen = []
+    real_unlink = Path.unlink
+
+    def checked_unlink(self, *args, **kwargs):
+        if self == src:
+            seen.append((src.stat().st_ino, dst.stat().st_ino, src.stat().st_nlink))
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", checked_unlink)
+    result = ops.move_note("Inbox/capture.md", "wiki/entities/Contact.md")
+    assert result.get("moved") == "Inbox/capture.md", result
+    assert len(seen) == 1, seen
+    src_ino, dst_ino, src_links = seen[0]
+    assert src_ino != dst_ino, "destination shared the source inode when the source was removed"
+    assert src_links == 1, "source had a second hard link when it was removed"
+    assert not src.exists()
+    assert dst.read_bytes() == body
+    assert dst.stat().st_nlink == 1
