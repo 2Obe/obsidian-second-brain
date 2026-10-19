@@ -1088,25 +1088,34 @@ def move_note(source: str, destination: str) -> Dict[str, Any]:
     # the same syscall. It is a new file, never a hard link to the source: cloud
     # sync clients (OneDrive, Dropbox, iCloud) track files by identity, and on
     # OneDrive a brief shared inode left two notes with swapped contents (#324). The
-    # source is removed only after the copy reads back byte for byte; if that
-    # removal fails, both copies remain rather than either note being lost.
-    data = src.read_bytes()
+    # source is removed only after the copy reads back byte for byte and the
+    # source still holds what was copied; on any failure the half-made
+    # destination is removed only if it is still the file this call created.
     try:
-        fd = os.open(str(dst), os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0))
+        data = src.read_bytes()
+    except OSError as exc:
+        return {"error": f"could not read source: {exc}"}
+    try:
+        fd = os.open(str(dst), os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_BINARY", 0))
     except FileExistsError:
         return {"error": f"destination already exists: {destination}"}
     except OSError as exc:
         return {"error": f"could not create destination safely: {exc}"}
+    created = os.fstat(fd).st_ino
     try:
-        with os.fdopen(fd, "wb") as fh:
+        with os.fdopen(fd, "r+b") as fh:
             fh.write(data)
             fh.flush()
             os.fsync(fh.fileno())
-        if dst.read_bytes() != data:
-            raise OSError("destination did not read back identical to the source")
+            fh.seek(0)
+            if fh.read() != data:
+                raise OSError("destination did not read back identical to the source")
+        if src.read_bytes() != data:
+            raise OSError("source changed during the move; it was left in place")
     except OSError as exc:
         try:
-            dst.unlink()
+            if dst.stat().st_ino == created:
+                dst.unlink()
         except OSError:
             pass
         return {"error": f"could not create destination safely: {exc}"}

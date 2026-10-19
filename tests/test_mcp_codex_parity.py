@@ -231,3 +231,44 @@ def test_move_note_never_puts_source_and_destination_on_one_inode(vault, monkeyp
     assert not src.exists()
     assert dst.read_bytes() == body
     assert dst.stat().st_nlink == 1
+
+
+def test_move_note_keeps_an_edit_made_to_the_source_mid_move(vault, monkeypatch):
+    root, ops = vault
+    (root / "Inbox").mkdir()
+    src = root / "Inbox" / "capture.md"
+    src.write_text("first\n", encoding="utf-8")
+    dst = root / "wiki/entities/Contact.md"
+    real_open = ops.os.open
+
+    def editing_open(path, flags, *args):
+        # The editor saves the source after move_note has read it.
+        if Path(path) == dst and flags & ops.os.O_EXCL:
+            with src.open("a", encoding="utf-8") as fh:
+                fh.write("typed during the move\n")
+        return real_open(path, flags, *args)
+
+    monkeypatch.setattr(ops.os, "open", editing_open)
+    result = ops.move_note("Inbox/capture.md", "wiki/entities/Contact.md")
+    assert result.get("error"), result
+    assert src.read_text(encoding="utf-8") == "first\ntyped during the move\n"
+    assert not dst.exists()
+
+
+def test_move_note_reports_an_unreadable_source_instead_of_raising(vault, monkeypatch):
+    root, ops = vault
+    (root / "Inbox").mkdir()
+    src = root / "Inbox" / "capture.md"
+    src.write_text("locked\n", encoding="utf-8")
+    real_read = Path.read_bytes
+
+    def locked_read(self):
+        if self == src:
+            raise PermissionError("locked by another process")
+        return real_read(self)
+
+    monkeypatch.setattr(Path, "read_bytes", locked_read)
+    result = ops.move_note("Inbox/capture.md", "wiki/entities/Contact.md")
+    assert "could not read source" in result.get("error", ""), result
+    assert src.exists()
+    assert not (root / "wiki/entities/Contact.md").exists()
