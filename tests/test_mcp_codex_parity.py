@@ -306,3 +306,57 @@ def test_move_note_cleanup_never_removes_a_destination_it_did_not_create(vault, 
     assert result.get("error"), result
     assert src.read_text(encoding="utf-8") == "mine\n"
     assert dst.read_text(encoding="utf-8") == "other writer\n"
+
+
+def test_move_note_returns_an_error_when_the_destination_write_fails(vault, monkeypatch):
+    root, ops = vault
+    (root / "Inbox").mkdir()
+    src = root / "Inbox" / "capture.md"
+    src.write_text("keep me\n", encoding="utf-8")
+
+    def full_disk(_fd, _data):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(ops.os, "write", full_disk)
+    result = ops.move_note("Inbox/capture.md", "wiki/entities/Contact.md")
+    assert "No space left" in result.get("error", ""), result
+    assert src.read_text(encoding="utf-8") == "keep me\n"
+    assert not (root / "wiki/entities/Contact.md").exists()
+
+
+def test_move_note_leaves_a_copy_it_cannot_identify(vault, monkeypatch):
+    """An inode of 0 (some network shares) cannot prove the copy is ours."""
+    root, ops = vault
+    (root / "Inbox").mkdir()
+    src = root / "Inbox" / "capture.md"
+    src.write_text("first\n", encoding="utf-8")
+    real_open, real_fstat = ops.os.open, ops.os.fstat
+
+    def editing_open(path, flags, *args):
+        if flags & ops.os.O_EXCL:
+            with src.open("a", encoding="utf-8") as fh:
+                fh.write("edit\n")
+        return real_open(path, flags, *args)
+
+    class NoInode:
+        def __init__(self, st):
+            self._st = st
+            self.st_ino = 0
+
+        def __getattr__(self, name):
+            return getattr(self._st, name)
+
+    dst = root / "wiki/entities/Contact.md"
+    real_stat = ops.os.stat
+
+    def stat_without_inode(path, *args, **kwargs):
+        st = real_stat(path, *args, **kwargs)
+        return NoInode(st) if Path(path) == dst else st
+
+    monkeypatch.setattr(ops.os, "open", editing_open)
+    monkeypatch.setattr(ops.os, "fstat", lambda fd: NoInode(real_fstat(fd)))
+    monkeypatch.setattr(ops.os, "stat", stat_without_inode)
+    result = ops.move_note("Inbox/capture.md", "wiki/entities/Contact.md")
+    assert result.get("error"), result
+    assert src.read_text(encoding="utf-8") == "first\nedit\n"
+    assert dst.exists()

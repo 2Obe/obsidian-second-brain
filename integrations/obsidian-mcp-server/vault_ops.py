@@ -1101,13 +1101,30 @@ def move_note(source: str, destination: str) -> Dict[str, Any]:
         return {"error": f"destination already exists: {destination}"}
     except OSError as exc:
         return {"error": f"could not create destination safely: {exc}"}
-    fh = os.fdopen(fd, "r+b")
+    # Raw descriptor calls, not a buffered file object: a buffered close after a
+    # failed write flushes again and raises past the error return.
+    open_fd = [fd]
+
+    def close_fd():
+        if open_fd:
+            try:
+                os.close(open_fd.pop())
+            except OSError:
+                pass
+
     try:
-        fh.write(data)
-        fh.flush()
-        os.fsync(fh.fileno())
-        fh.seek(0)
-        if fh.read() != data:
+        view = memoryview(data)
+        while view:
+            view = view[os.write(fd, view):]
+        os.fsync(fd)
+        os.lseek(fd, 0, os.SEEK_SET)
+        chunks = []
+        while True:
+            chunk = os.read(fd, 1 << 20)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        if b"".join(chunks) != data:
             raise OSError("destination did not read back identical to the source")
         if src.read_bytes() != data:
             raise OSError("source changed during the move; it was left in place")
@@ -1115,18 +1132,22 @@ def move_note(source: str, destination: str) -> Dict[str, Any]:
         # While our descriptor is open its inode cannot be freed, so no other
         # file can reuse the number (ext4 reuses it at once). Windows cannot
         # unlink a file it holds open, but there no other writer can replace it
-        # meanwhile either, so close first and compare.
-        created = os.fstat(fh.fileno()).st_ino
-        if os.name == "nt":
-            fh.close()
+        # meanwhile either, so close first and compare. An inode of 0 (some
+        # network shares) identifies nothing, so the copy is left in place.
         try:
-            if dst.stat().st_ino == created:
+            created = os.fstat(fd).st_ino
+        except OSError:
+            created = 0
+        if os.name == "nt":
+            close_fd()
+        try:
+            if created and dst.stat().st_ino == created:
                 dst.unlink()
         except OSError:
             pass
         return {"error": f"could not create destination safely: {exc}"}
     finally:
-        fh.close()
+        close_fd()
     try:
         shutil.copystat(src, dst)
     except OSError:
