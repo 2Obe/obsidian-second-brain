@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **A freshly bootstrapped vault now reads clean in the MCP `obsidian_vault_health` too (#344).** On a new vault the tool reported 10 wanted notes and 2 orphans that the CLI check did not. `Home.md` wrote `\|` (the table-cell escape) on plain lines, where the backslash stayed in the link target and broke the link in Obsidian as well; it now writes `|` outside tables. The server drops a trailing backslash from a target, as the CLI already did, so a correctly escaped link inside a table resolves. The folder links (`[[Daily/|...]]`), which never resolve in Obsidian, are now plain text, and a link whose target normalises to nothing is reported as wanted instead of skipped. The orphan check skips `Home.md` and `_CLAUDE.md`, as the CLI does.
+
 ## [0.18.0] - 2026-10-17 - Crew
 
 ### Added
