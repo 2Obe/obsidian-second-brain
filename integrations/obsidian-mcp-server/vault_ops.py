@@ -15,6 +15,7 @@ import math
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import unicodedata
@@ -1082,16 +1083,78 @@ def move_note(source: str, destination: str) -> Dict[str, Any]:
         return {"error": f"destination already exists: {destination}"}
     dst.parent.mkdir(parents=True, exist_ok=True)
     # A preflight exists() check followed by os.replace() has a race: another
-    # writer can create the destination between them and be overwritten. A hard
-    # link is exclusive at the filesystem boundary; unlinking the source then
-    # completes the move. If unlinking fails, both copies remain (safe) rather
-    # than either note being lost.
+    # writer can create the destination between them and be overwritten. So the
+    # destination is created with O_CREAT | O_EXCL, which fails if it exists in
+    # the same syscall. It is a new file, never a hard link to the source: cloud
+    # sync clients (OneDrive, Dropbox, iCloud) track files by identity, and on
+    # OneDrive a brief shared inode left two notes with swapped contents (#324). The
+    # source is removed only after the copy reads back byte for byte and the
+    # source still holds what was copied; on any failure the half-made
+    # destination is removed only if it is still the file this call created.
     try:
-        os.link(src, dst)
+        data = src.read_bytes()
+    except OSError as exc:
+        return {"error": f"could not read source: {exc}"}
+    try:
+        fd = os.open(str(dst), os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_BINARY", 0))
     except FileExistsError:
         return {"error": f"destination already exists: {destination}"}
     except OSError as exc:
         return {"error": f"could not create destination safely: {exc}"}
+    # Raw descriptor calls, not a buffered file object: a buffered close after a
+    # failed write flushes again and raises past the error return.
+    open_fd = [fd]
+
+    def close_fd():
+        if open_fd:
+            try:
+                os.close(open_fd.pop())
+            except OSError:
+                pass
+
+    try:
+        view = memoryview(data)
+        while view:
+            written = os.write(fd, view)
+            if not written:
+                raise OSError("destination accepted no bytes")
+            view = view[written:]
+        os.fsync(fd)
+        os.lseek(fd, 0, os.SEEK_SET)
+        chunks = []
+        while True:
+            chunk = os.read(fd, 1 << 20)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        if b"".join(chunks) != data:
+            raise OSError("destination did not read back identical to the source")
+        if src.read_bytes() != data:
+            raise OSError("source changed during the move; it was left in place")
+    except OSError as exc:
+        # While our descriptor is open its inode cannot be freed, so no other
+        # file can reuse the number (ext4 reuses it at once). Windows cannot
+        # unlink a file it holds open, but there no other writer can replace it
+        # meanwhile either, so close first and compare. An inode of 0 (some
+        # network shares) identifies nothing, so the copy is left in place.
+        try:
+            created = os.fstat(fd).st_ino
+        except OSError:
+            created = 0
+        if os.name == "nt":
+            close_fd()
+        try:
+            if created and dst.stat().st_ino == created:
+                dst.unlink()
+        except OSError:
+            pass
+        return {"error": f"could not create destination safely: {exc}"}
+    finally:
+        close_fd()
+    try:
+        shutil.copystat(src, dst)
+    except OSError:
+        pass
     try:
         src.unlink()
     except OSError as exc:
