@@ -360,3 +360,15 @@ def test_move_note_leaves_a_copy_it_cannot_identify(vault, monkeypatch):
     assert result.get("error"), result
     assert src.read_text(encoding="utf-8") == "first\nedit\n"
     assert dst.exists()
+
+
+def test_move_note_fails_instead_of_spinning_when_a_write_makes_no_progress(vault, monkeypatch):
+    root, ops = vault
+    (root / "Inbox").mkdir()
+    src = root / "Inbox" / "capture.md"
+    src.write_text("keep me\n", encoding="utf-8")
+    monkeypatch.setattr(ops.os, "write", lambda _fd, _data: 0)
+    result = ops.move_note("Inbox/capture.md", "wiki/entities/Contact.md")
+    assert "accepted no bytes" in result.get("error", ""), result
+    assert src.read_text(encoding="utf-8") == "keep me\n"
+    assert not (root / "wiki/entities/Contact.md").exists()

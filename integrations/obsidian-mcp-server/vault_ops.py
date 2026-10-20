@@ -1115,7 +1115,10 @@ def move_note(source: str, destination: str) -> Dict[str, Any]:
     try:
         view = memoryview(data)
         while view:
-            view = view[os.write(fd, view):]
+            written = os.write(fd, view)
+            if not written:
+                raise OSError("destination accepted no bytes")
+            view = view[written:]
         os.fsync(fd)
         os.lseek(fd, 0, os.SEEK_SET)
         chunks = []
