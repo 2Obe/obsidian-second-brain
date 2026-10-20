@@ -13,7 +13,7 @@ Use the obsidian-second-brain skill. Execute `/obsidian-ingest $ARGUMENTS`:
 The argument is a URL, file path, or pasted text. If no argument, ask what to ingest.
 
 1. Read `_CLAUDE.md` first if it exists in the vault root
-   - In the First-Brain wiki-style variant, treat `First-Brain/` and every descendant as human source material, never as a rewrite or propagation destination. Preserve original bytes and paths; do not add AI-first frontmatter to them. Honor sensitive-content permissions before reading or capturing sources. Pass these restrictions to every subagent.
+   - In the First-Brain wiki-style variant, treat `First-Brain/` (or the source folder the vault's First Brain Protection section names, by its exact spelling) and every descendant as human source material, never as a rewrite or propagation destination. Preserve original bytes and paths; do not add AI-first frontmatter to them. Honor sensitive-content permissions before reading or capturing sources. Pass these restrictions to every subagent.
 
 2. Classify the source type before reading the full content:
    - **Article/blog post** - extract key claims, people, tools, concepts
