@@ -1239,7 +1239,7 @@ def validate_note(rel: str) -> Dict[str, Any]:
     seen = set()
     for link in _wikilinks(text):
         norm = _norm_link(link)
-        if norm and norm not in index and norm not in seen:
+        if norm not in index and norm not in seen:
             seen.add(norm)
             issues.append(f"unresolved wikilink: [[{link}]]")
     return {"path": rel, "ok": not issues, "issues": issues}
@@ -1301,9 +1301,14 @@ def vault_health() -> Dict[str, Any]:
         for link in links:
             norm = _norm_link(link)
             linked_to.add(norm)
-            if norm and norm not in index and len(wanted) < 10:
+            if norm not in index and len(wanted) < 10:
                 wanted.append({"in": rel, "link": link})
-    orphans = [p for s, p in note_paths.items() if s not in linked_to and s not in has_outbound]
+    # Home.md and _CLAUDE.md are entry points nothing links to, exempt from the
+    # orphan check in scripts/vault_health.py too (#344).
+    orphans = [
+        p for s, p in note_paths.items()
+        if s not in linked_to and s not in has_outbound and p not in ("Home.md", "_CLAUDE.md")
+    ]
     return {
         "notes_scanned": count,
         "capped": count >= _MAX_FILES_SCANNED,
@@ -1556,9 +1561,13 @@ _INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
 
 def _wikilinks(text: str) -> List[str]:
     """Return the raw target of each [[wikilink]] (before any | alias or # anchor),
-    ignoring links quoted inside fenced code blocks or inline code spans."""
+    ignoring links quoted inside fenced code blocks or inline code spans.
+
+    A trailing backslash is dropped: it is the escape of the alias pipe inside
+    a Markdown table cell (`[[Note\\|alias]]`), not part of the target. Same
+    handling as scripts/vault_health.py (#344)."""
     stripped = _INLINE_CODE_RE.sub("", _CODE_FENCE_RE.sub("", text))
-    return [m.group(1).strip() for m in _WIKILINK_RE.finditer(stripped)]
+    return [m.group(1).strip().rstrip("\\").strip() for m in _WIKILINK_RE.finditer(stripped)]
 
 
 def _nfc(s: str) -> str:
