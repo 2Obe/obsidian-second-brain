@@ -272,3 +272,32 @@ def test_move_note_reports_an_unreadable_source_instead_of_raising(vault, monkey
     assert "could not read source" in result.get("error", ""), result
     assert src.exists()
     assert not (root / "wiki/entities/Contact.md").exists()
+
+
+def test_move_note_cleanup_never_removes_a_destination_it_did_not_create(vault, monkeypatch):
+    """A failed move removes its own half-made copy, not a file that replaced it."""
+    root, ops = vault
+    (root / "Inbox").mkdir()
+    src = root / "Inbox" / "capture.md"
+    src.write_text("mine\n", encoding="utf-8")
+    dst = root / "wiki/entities/Contact.md"
+    real_read = Path.read_bytes
+    calls = []
+
+    def racing_read(self):
+        data = real_read(self)
+        if self == src:
+            calls.append(1)
+            if len(calls) == 2:
+                # The pre-unlink re-read: another writer swaps in its own
+                # destination and the source has changed, so the move fails.
+                dst.unlink()
+                dst.write_text("other writer\n", encoding="utf-8")
+                return b"changed\n"
+        return data
+
+    monkeypatch.setattr(Path, "read_bytes", racing_read)
+    result = ops.move_note("Inbox/capture.md", "wiki/entities/Contact.md")
+    assert result.get("error"), result
+    assert src.read_text(encoding="utf-8") == "mine\n"
+    assert dst.read_text(encoding="utf-8") == "other writer\n"
