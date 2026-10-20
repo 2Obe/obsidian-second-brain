@@ -1101,24 +1101,32 @@ def move_note(source: str, destination: str) -> Dict[str, Any]:
         return {"error": f"destination already exists: {destination}"}
     except OSError as exc:
         return {"error": f"could not create destination safely: {exc}"}
-    created = os.fstat(fd).st_ino
+    fh = os.fdopen(fd, "r+b")
     try:
-        with os.fdopen(fd, "r+b") as fh:
-            fh.write(data)
-            fh.flush()
-            os.fsync(fh.fileno())
-            fh.seek(0)
-            if fh.read() != data:
-                raise OSError("destination did not read back identical to the source")
+        fh.write(data)
+        fh.flush()
+        os.fsync(fh.fileno())
+        fh.seek(0)
+        if fh.read() != data:
+            raise OSError("destination did not read back identical to the source")
         if src.read_bytes() != data:
             raise OSError("source changed during the move; it was left in place")
     except OSError as exc:
+        # While our descriptor is open its inode cannot be freed, so no other
+        # file can reuse the number (ext4 reuses it at once). Windows cannot
+        # unlink a file it holds open, but there no other writer can replace it
+        # meanwhile either, so close first and compare.
+        created = os.fstat(fh.fileno()).st_ino
+        if os.name == "nt":
+            fh.close()
         try:
             if dst.stat().st_ino == created:
                 dst.unlink()
         except OSError:
             pass
         return {"error": f"could not create destination safely: {exc}"}
+    finally:
+        fh.close()
     try:
         shutil.copystat(src, dst)
     except OSError:

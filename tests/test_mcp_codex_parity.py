@@ -274,8 +274,13 @@ def test_move_note_reports_an_unreadable_source_instead_of_raising(vault, monkey
     assert not (root / "wiki/entities/Contact.md").exists()
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows does not let another writer replace a file this process holds open")
 def test_move_note_cleanup_never_removes_a_destination_it_did_not_create(vault, monkeypatch):
-    """A failed move removes its own half-made copy, not a file that replaced it."""
+    """A failed move removes its own half-made copy, not a file that replaced it.
+
+    On ext4 the replacing file gets the freed inode number at once, so the
+    check only holds while move_note still has its own descriptor open.
+    """
     root, ops = vault
     (root / "Inbox").mkdir()
     src = root / "Inbox" / "capture.md"
