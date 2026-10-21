@@ -50,7 +50,7 @@ Run only one folder ingestion per vault at a time. This minimal helper has no ac
 ## Single-source workflow
 
 1. Read `_CLAUDE.md` first if it exists in the vault root
-   - In the First-Brain wiki-style variant, treat `First-Brain/` and every descendant as human source material, never as a rewrite or propagation destination. Preserve original bytes and paths; do not add AI-first frontmatter to them. Honor sensitive-content permissions before reading or capturing sources. Pass these restrictions to every subagent.
+   - In the First-Brain wiki-style variant, treat `First-Brain/` (or the source folder the vault's First Brain Protection section names, by its exact spelling) and every descendant as human source material, never as a rewrite or propagation destination. Preserve original bytes and paths; do not add AI-first frontmatter to them. Honor sensitive-content permissions before reading or capturing sources. Pass these restrictions to every subagent.
 
 2. Classify the source type before reading the full content:
    - **Article/blog post** - extract key claims, people, tools, concepts

@@ -36,6 +36,18 @@ def test_init_preserves_sources_manual_review_and_existing_layout_choice():
     assert "never route generated outputs under the source folder" in command
 
 
+def test_init_protects_the_source_folder_by_the_name_it_found():
+    """A vault with `First_Brain/` got a rule naming only `First-Brain/` (#330 live run)."""
+    command = read("commands/obsidian-init.md")
+    assert "`First_Brain/`" in command
+    assert "Record the exact folder name the user confirmed" in command
+    assert "do not create `First-Brain/` beside it" in command
+    template = read("references/claude-md-template.md")
+    assert "Write the source folder's exact name as `/obsidian-init` recorded it" in template
+    assert "the source folder the vault's First Brain Protection section names" in read(
+        "commands/obsidian-ingest.md")
+
+
 def test_init_covers_ancillary_routing_and_preserves_existing_bases():
     command = read("commands/obsidian-init.md")
     for destination in (
