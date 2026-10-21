@@ -20,7 +20,7 @@ When a user asks Claude to create their `_CLAUDE.md`, Claude should:
 
 ## The Template
 
-For the optional First-Brain wiki-style variant selected through `/obsidian-init`, insert the following section into the generated manual. Replace the human-first Folder Map, auto-save destinations, propagation destinations, and key-file paths with the selected wiki routes. Scope Section 0 and Frontmatter Requirements to agent-generated notes; replace the claim that the owner rarely reads notes with the distinction between human sources and derived knowledge. Keep the user's sensitive-content rules. This section is conditional; do not add it to other layouts.
+For the optional First-Brain wiki-style variant selected through `/obsidian-init`, insert the following section into the generated manual. Replace the human-first Folder Map, auto-save destinations, propagation destinations, and key-file paths with the selected wiki routes. Scope Section 0 and Frontmatter Requirements to agent-generated notes; replace the claim that the owner rarely reads notes with the distinction between human sources and derived knowledge. Keep the user's sensitive-content rules. Write the source folder's exact name as `/obsidian-init` recorded it (for example `First_Brain/`) wherever this section says `First-Brain/`; a protection rule that names a different spelling protects nothing. This section is conditional; do not add it to other layouts.
 
 ```markdown
 ## First Brain Protection
