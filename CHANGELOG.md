@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Optional First-Brain wiki-style variant (#330, by @2Obe).** `/obsidian-init` configures a human-maintained source layer and wiki destinations through its existing agent-driven workflow. A source folder spelled differently (`First_Brain/`, `first brain/`) is protected by the exact name init found. Individual ingestion preserves originals, records local provenance, and keeps source conflicts in the derived layer. Protection is instruction-based; no bulk ingestion or background synchronization is introduced.
 
+### Changed
+
+- **`/obsidian-reconcile` acts only on contradictions it can prove.** Subagents now return each side of a contradiction as a note path, a line and a one-line quote copied from that note. The new `scripts/verify_quotes.py` checks both quotes are really there, word for word, before any rewrite or conflict note. A contradiction that fails the check is dropped and listed as unproven, and the log line counts reported, proven and dropped findings. Before this, a contradiction a model misread could rewrite a correct note, and as #258 showed, a wrong claim copied into several notes keeps misleading later sessions. The checker is standard-library only; 12 tests cover real, invented and one-word-changed quotes, wrong line numbers, short and multi-line quotes, paths outside the vault, and Windows/macOS text encodings.
+
 ## [0.18.1] - 2026-10-20
 
 ### Fixed
