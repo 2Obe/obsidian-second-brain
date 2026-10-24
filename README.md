@@ -873,6 +873,22 @@ Two ways to provide the embedding model:
 
 Knobs: `OBSIDIAN_SEARCH_SEMANTIC=0` disables the layer entirely. `OBSIDIAN_EMBED_MAX_CHUNKS=<n>` raises the per-note embedding cap from the default 8 chunks (~9,600 characters); a long-form vault of research dossiers or book-length notes embeds more of each note at the cost of a slower build, and text past the cap is not embedded. A value below 1 or one that is not a number falls back to 8 and says so on stderr, because the cap is applied as a slice: `0` would embed nothing and drop the note from the index. `OBSIDIAN_RRF_LEX_DEPTH=<n>` caps how many lexical results get a vote in the hybrid fusion (default 25, which caps nothing); lower it to 5-10 when a tail of term-frequency matches pushes an exact match out of the top results (#262). The index file is large and regenerable - gitignore it.
 
+### Capture from your phone (optional)
+
+Send a voice note, text, photo, PDF or link to a private Telegram bot, and it lands in your vault. A small poller on your computer does the work and replies to confirm:
+
+- **Voice** is transcribed (OpenAI Whisper, or local Whisper with no key) and added to today's daily note.
+- **Photos** are read and filed to the note they belong to. **PDFs** become a literature note. **Links** go to `/youtube`, `/x-read` or `/research`.
+- Every capture also joins a `catchup.md` queue. Back at your laptop, run `/obsidian-catchup` to review and integrate them together.
+
+Create the bot with @BotFather, then run one command:
+
+```bash
+cd integrations/telegram-journal && ./setup.sh
+```
+
+You need a Telegram bot token, an Anthropic API key, and for voice an OpenAI key or local Whisper. Full guide: [integrations/telegram-journal](integrations/telegram-journal/README.md).
+
 ---
 
 ## FAQ
@@ -909,6 +925,9 @@ Yes. The skill is model-agnostic - the OpenCode, Codex, and Gemini builds are pl
 
 ### Does this work with Obsidian Sync?
 Yes. The skill writes to your vault as standard markdown files. Obsidian Sync, iCloud, Syncthing, and Git-based sync all work without modification.
+
+### Can I add notes from my phone?
+Yes, through the optional Telegram bot. Send a voice note while you walk, and it is transcribed into today's daily note. Photos, PDFs and links are filed too. See [Capture from your phone](#capture-from-your-phone-optional).
 
 ### Do I need API keys to use this?
 Mostly no. The vault commands (`/obsidian-save`, `/obsidian-daily`, etc.) need no API keys. `/research` and `/research-deep` are also key-free now - with no Perplexity key they automatically fall back to free, key-less sources (Wikipedia, HackerNews, arXiv, Reddit, and more) and Claude synthesizes the dossier. The remaining research commands (`/x-read`, `/x-pulse`, `/notebooklm`, `/youtube`, `/podcast`) need their respective keys (xAI Grok, Perplexity, Google Gemini, optionally YouTube Data API v3 / OpenAI Whisper) and exit with a clear setup message when one is missing. The calendar command (`/obsidian-calendar`, all four modes) needs the Google Calendar MCP connector rather than an API key.
