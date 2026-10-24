@@ -129,8 +129,8 @@ def test_ask_refuses_more_than_three_facts(vault):
 
 GOOD = (
     "---\ndate: 2026-10-24\ntype: idea\ntags: [idea]\nai-first: true\n---\n\n"
-    "## For future agent\nA note — with a dash, a [[A—B]] link.\n"
-    "中文——破折号\n"
+    "## For future agent\nA note \u2014 with a dash, a [[A\u2014B]] link.\n"
+    "\u4e2d\u6587\u2014\u2014\u7834\u6298\u53f7\n"
 )
 
 
@@ -149,8 +149,8 @@ def test_check_notes_fails_then_fix_rewrites_prose_only(tmp_path):
     text = (tmp_path / "n.md").read_text(encoding="utf-8")
     assert code == 0 and out["fixed"] == ["n.md"], out
     assert "A note - with a dash" in text
-    assert "[[A—B]]" in text
-    assert "中文——" in text
+    assert "[[A\u2014B]]" in text
+    assert "\u4e2d\u6587\u2014\u2014" in text
 
 
 @pytest.mark.skipif(BASH == "bash", reason="needs bash on PATH for the hook")
