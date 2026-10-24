@@ -134,6 +134,9 @@ Claude transcribes it with a local Whisper install, attributes speakers where th
 **You screenshot a whiteboard:** `/obsidian-ingest photo.png`
 Claude reads the image, extracts text and structure, creates concept notes, links to related projects. A photo becomes knowledge.
 
+**You have a finished text document:** `/obsidian-ingest report.docx`
+Word (`.docx`, `.doc`) and OpenDocument (`.odt`) files uploaded or copied into the vault follow the same local-source rules as PDFs and Markdown. The helper converts a private copy to a temporary PDF, then ingestion uses the existing PDF path. Text and figures use that path; comments and revision markup are excluded. The original stays unchanged and remains the source under the existing provenance rules. Requires Python 3.10+ and [LibreOffice 26.2+](https://www.libreoffice.org/download/download-libreoffice/), installed separately. Run `python scripts/document_to_pdf.py "path/to/report.docx"`; it prints the PDF path. Put `soffice` on PATH or add `--soffice` with its executable path (Windows: `C:/Program Files/LibreOffice/program/soffice.com`; macOS: `/Applications/LibreOffice.app/Contents/MacOS/soffice`). Remove the generated PDF and its temporary parent folder after capture. No additional Python packages are needed. See [the ingest command](commands/obsidian-ingest.md). Presentation and spreadsheet formats remain outside scope.
+
 **You find a great video:** `/obsidian-ingest https://youtube.com/...`
 Claude doesn't summarize into one note. It REWRITES your existing pages. People get updated. Contradictions get resolved. Patterns trigger new synthesis pages. One URL in. The vault is smarter.
 
@@ -176,7 +179,7 @@ Free transcript via youtube-transcript-api. Optional metadata + top comments via
 | Finding patterns | Re-read dozens of notes | `/obsidian-emerge` finds them for you |
 | Challenging yourself | Nobody pushes back | `/obsidian-challenge` uses your own history against you |
 | Session continuity | Re-explain every time | `/obsidian-world` loads full context in 10 seconds |
-| Ingesting content | Read it, forget it | `/obsidian-ingest` rewrites 5-15 vault pages from 1 source (URLs, PDFs, audio, screenshots) |
+| Ingesting content | Read it, forget it | `/obsidian-ingest` rewrites 5-15 vault pages from 1 source (URLs, PDFs, Word/OpenDocument text files, audio, screenshots) |
 | Contradictions | You don't know they exist | `/obsidian-reconcile` resolves them automatically |
 | Synthesis | You connect dots manually | `/obsidian-synthesize` finds patterns across sources on its own |
 | Sharing vault data | Only Claude can read it | `/obsidian-export` gives any AI tool a clean snapshot |
@@ -306,7 +309,7 @@ Free transcript via youtube-transcript-api. Optional metadata + top comments via
 | Command | What it does |
 |---|---|
 | `/obsidian-save` | Saves everything from the conversation -- decisions, tasks, people, ideas |
-| `/obsidian-ingest` | Drop a URL, PDF, audio file, or screenshot. The vault REWRITES itself. 5-15 pages touched per source. |
+| `/obsidian-ingest` | Drop a URL, PDF, text document (`.docx`, `.doc`, `.odt`; requires LibreOffice), audio file, or screenshot. The vault REWRITES itself. 5-15 pages touched per source. |
 | `/obsidian-synthesize` | Auto-finds patterns across sources and writes synthesis pages |
 | `/obsidian-reconcile` | Finds contradictions and resolves them. The vault maintains its own truth. |
 | `/obsidian-export` | Clean JSON/markdown snapshot any AI tool can read |

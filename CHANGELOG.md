@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Word/OpenDocument text ingestion through PDF conversion.** `/obsidian-ingest` accepts `.docx`, `.doc`, and `.odt` through the stdlib-only `scripts/document_to_pdf.py` helper, following the existing local-source and PDF ingestion rules. LibreOffice 26.2+ is required separately. Conversion uses a private copy and profile, excludes comments and revision markup, and prints a temporary PDF path. Original documents stay unchanged and use the existing provenance schema; no Office-specific path checks, metadata fields, or extraction pipeline are added.
+
 - **Optional First-Brain wiki-style variant (#330, by @2Obe).** `/obsidian-init` configures a human-maintained source layer and wiki destinations through its existing agent-driven workflow. A source folder spelled differently (`First_Brain/`, `first brain/`) is protected by the exact name init found. Individual ingestion preserves originals, records local provenance, and keeps source conflicts in the derived layer. Protection is instruction-based; no bulk ingestion or background synchronization is introduced.
 
 ## [0.18.1] - 2026-10-20
