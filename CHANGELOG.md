@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-24 - The Check-In
+
 ### Added
 
 - **`/obsidian-checkin` asks you whether old notes still hold.** A fact check compares notes with notes, so news that never reached the vault (a bill settled, a move, a new job) left a note stale and no lint could see it. Check-in asks the owner: up to 3 people or project notes a day whose facts are older than 14 days, family and active projects first. Each card shows the note's name, the date of its facts, and 1 to 3 facts from the note. "Same" stamps a new `last-checked` field; news rewrites the stale claim and propagates; "skip" asks again after 14 days. The open questions live in `<vault>/.checkin.json`, not in the chat, so a host that drops an unanswered question after an hour re-sends the full cards on its next run until they are answered. `scripts/checkin.py` does the picking, the queue and the rendering, so every host sends the same short message. Opt a note out with `checkin: never`, or move it up with `checkin: priority`.
